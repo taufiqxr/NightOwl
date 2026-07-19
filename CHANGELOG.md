@@ -8,6 +8,29 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.8.0] — 2026-07-19
+
+### Added
+- **Jump to this terminal**: each Claude session's submenu can now bring
+  its terminal window/tab to the front — Terminal.app and iTerm2 both
+  expose per-tab ttys to AppleScript, so NightOwl finds the tab owning
+  the session's tty and focuses it. Only already-running terminal apps
+  are scripted (a `tell application` to a quit app would launch it).
+  First use triggers macOS's one-time "NightOwl wants to control
+  Terminal" automation prompt. Sessions hosted in other apps (VS Code
+  integrated terminals) get an honest "can't bring it forward" message.
+
+### Changed
+- The Claude sessions item is now titled **Claude (N)**.
+
+### Fixed
+- **1–2 second menu-open lag** (reported live, introduced in 1.7.0): the
+  menu was running a full `lsof` port scan plus one `lsof` per Claude
+  session synchronously before it could draw. The menu now opens
+  instantly from cached data and refreshes itself in place moments later;
+  detection runs off the main thread everywhere (including the 60s watch
+  cycle), and the per-session `lsof` calls collapsed into one.
+
 ## [1.7.0] — 2026-07-19
 
 ### Added
@@ -136,6 +159,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.8.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.8.0
 [1.7.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.7.0
 [1.6.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.6.0
 [1.5.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.5.0

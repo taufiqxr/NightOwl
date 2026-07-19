@@ -150,7 +150,7 @@ struct ClaudeSession {
 }
 
 func detectClaudeSessions() -> [ClaudeSession] {
-    var sessions: [ClaudeSession] = []
+    var found: [(pid: Int, tty: String, etime: String)] = []
     let out = shell("/bin/ps axo pid,tty,etime,comm")
     for line in out.split(separator: "\n").dropFirst() {
         let cols = line.split(separator: " ", omittingEmptySubsequences: true)
@@ -158,14 +158,26 @@ func detectClaudeSessions() -> [ClaudeSession] {
               let pid = Int(cols[0]),
               cols[1].hasPrefix("ttys"),
               cols[3] == "claude" else { continue }
-        let cwdOut = shell("/usr/sbin/lsof -a -p \(pid) -d cwd -Fn 2>/dev/null")
-        let cwd = cwdOut.split(separator: "\n")
-            .first(where: { $0.hasPrefix("n") })
-            .map { String($0.dropFirst()) } ?? "?"
-        sessions.append(ClaudeSession(pid: pid, tty: String(cols[1]),
-                                      etime: String(cols[2]), cwd: cwd))
+        found.append((pid, String(cols[1]), String(cols[2])))
     }
-    return sessions.sorted { $0.tty < $1.tty }
+    guard !found.isEmpty else { return [] }
+
+    // ONE lsof for all sessions (-Fpn: p<pid> / n<cwd> pairs) — per-pid
+    // lsof calls were the main source of a 1–2s menu-open lag.
+    var cwdByPid: [Int: String] = [:]
+    let pidList = found.map { String($0.pid) }.joined(separator: ",")
+    var currentPid: Int?
+    for line in shell("/usr/sbin/lsof -a -p \(pidList) -d cwd -Fpn 2>/dev/null")
+        .split(separator: "\n") {
+        if line.hasPrefix("p") { currentPid = Int(line.dropFirst()) }
+        else if line.hasPrefix("n"), let pid = currentPid {
+            cwdByPid[pid] = String(line.dropFirst())
+        }
+    }
+    return found
+        .map { ClaudeSession(pid: $0.pid, tty: $0.tty, etime: $0.etime,
+                             cwd: cwdByPid[$0.pid] ?? "?") }
+        .sorted { $0.tty < $1.tty }
 }
 
 // MARK: - Privileged execution
@@ -227,6 +239,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
     var prevAwake: Bool?
     var lastModeChangeAt = Date.distantPast
 
+    // Detection caches: the menu builds INSTANTLY from these; a
+    // background refresh kicks off on every open and repopulates the
+    // still-open menu in place when it lands (NSMenu supports live
+    // mutation). Building synchronously from live lsof/ps caused a 1–2s
+    // menu-open lag, reported by a real user.
+    var cachedServices: [LocalService] = []
+    var cachedTunnels: [(name: String, pid: Int)] = []
+    var cachedSessions: [ClaudeSession] = []
+    var menuIsOpen = false
+    var refreshInFlight = false
+
     // Service watch: identity is the PORT (pids change across restarts);
     // tunnels are watched by process name. Persisted in UserDefaults.
     var watchedPorts: Set<Int> = []
@@ -275,8 +298,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         }
         watchTimer?.tolerance = 10
 
+        refreshDetectionCaches()
         offerLoginItemOnFirstRun()
     }
+
+    func refreshDetectionCaches(then: (() -> Void)? = nil) {
+        if refreshInFlight { return }
+        refreshInFlight = true
+        DispatchQueue.global().async { [weak self] in
+            let services = detectLocalServices()
+            let tunnels = detectTunnels()
+            let sessions = detectClaudeSessions()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.cachedServices = services
+                self.cachedTunnels = tunnels
+                self.cachedSessions = sessions
+                self.refreshInFlight = false
+                then?()
+            }
+        }
+    }
+
+    func menuWillOpen(_ menu: NSMenu) { menuIsOpen = true }
+    func menuDidClose(_ menu: NSMenu) { menuIsOpen = false }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
@@ -324,7 +369,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
 
     func runWatchChecks() {
         guard !watchedPorts.isEmpty || !watchedTunnels.isEmpty else { return }
-        let livePorts = Set(detectLocalServices().flatMap { $0.ports })
+        // Detection runs OFF the main thread (an lsof scan blocking the
+        // runloop is exactly the lag bug the menu had); state updates and
+        // notifications hop back to main. The caches refresh as a side
+        // effect — the watch cycle already pays for the lsof, so the menu
+        // stays ≤60s fresh even when never opened.
+        DispatchQueue.global().async { [weak self] in
+            let liveServices = detectLocalServices()
+            let liveTunnelList = detectTunnels()
+            DispatchQueue.main.async {
+                self?.applyWatchResults(liveServices, liveTunnelList)
+            }
+        }
+    }
+
+    func applyWatchResults(_ liveServices: [LocalService],
+                           _ liveTunnelList: [(name: String, pid: Int)]) {
+        cachedServices = liveServices
+        cachedTunnels = liveTunnelList
+        let livePorts = Set(liveServices.flatMap { $0.ports })
         for port in watchedPorts {
             let up = livePorts.contains(port)
             if let prev = lastPortUp[port], prev != up {
@@ -335,7 +398,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
             }
             lastPortUp[port] = up
         }
-        let liveTunnels = Set(detectTunnels().map { $0.name })
+        let liveTunnels = Set(liveTunnelList.map { $0.name })
         for t in watchedTunnels {
             let up = liveTunnels.contains(t)
             if let prev = lastTunnelUp[t], prev != up {
@@ -433,6 +496,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
     // MARK: Menu
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        buildMenu(menu)   // instant, from caches
+        refreshDetectionCaches { [weak self] in
+            // repopulate in place if the user still has the menu open
+            if self?.menuIsOpen == true { self?.buildMenu(menu) }
+        }
+    }
+
+    func buildMenu(_ menu: NSMenu) {
         menu.removeAllItems()
         let awake = sleepDisabledNow()
         let ac = onACPower()
@@ -498,8 +569,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
     // The top-level title carries a ⚠️ badge when a watched item is down,
     // so trouble is still visible without expanding.
     func addServicesSection(_ menu: NSMenu) {
-        let services = detectLocalServices()
-        let tunnels = detectTunnels()
+        let services = cachedServices
+        let tunnels = cachedTunnels
         let watchDown = lastPortUp.values.contains(false) || lastTunnelUp.values.contains(false)
 
         let total = services.count + tunnels.count
@@ -610,10 +681,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
     // Open Claude Code terminal sessions, labeled by the project folder
     // each one is working in. Hidden entirely when none are running.
     func addClaudeSection(_ menu: NSMenu) {
-        let sessions = detectClaudeSessions()
+        let sessions = cachedSessions
         guard !sessions.isEmpty else { return }
 
-        let top = NSMenuItem(title: "Claude terminals (\(sessions.count))",
+        let top = NSMenuItem(title: "Claude (\(sessions.count))",
                              action: nil, keyEquivalent: "")
         let claudeMenu = NSMenu()
         top.submenu = claudeMenu
@@ -634,6 +705,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
             procInfo.isEnabled = false
             sub.addItem(procInfo)
             sub.addItem(.separator())
+            let jump = NSMenuItem(title: "Jump to this terminal",
+                                  action: #selector(jumpToClaudeSession(_:)), keyEquivalent: "")
+            jump.target = self
+            jump.representedObject = s.tty
+            sub.addItem(jump)
             let reveal = NSMenuItem(title: "Reveal folder in Finder",
                                     action: #selector(revealClaudeFolder(_:)), keyEquivalent: "")
             reveal.target = self
@@ -647,6 +723,84 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
             item.submenu = sub
             claudeMenu.addItem(item)
         }
+    }
+
+    // Bring the terminal window/tab that owns this session's tty to the
+    // front. Terminal.app and iTerm2 both expose per-tab ttys to
+    // AppleScript. Only apps that are ALREADY RUNNING are scripted —
+    // `tell application` would otherwise launch them (the Amphetamine
+    // relaunch lesson). First use triggers macOS's one-time
+    // "NightOwl wants to control Terminal" automation prompt.
+    @objc func jumpToClaudeSession(_ sender: NSMenuItem) {
+        guard let tty = sender.representedObject as? String else { return }
+        let dev = "/dev/\(tty)"
+        DispatchQueue.global().async { [weak self] in
+            var focused = false
+            if self?.appIsRunning("com.apple.Terminal") == true {
+                let script = """
+                tell application "Terminal"
+                  repeat with w in windows
+                    repeat with t in tabs of w
+                      if tty of t is "\(dev)" then
+                        set selected tab of w to t
+                        set index of w to 1
+                        activate
+                        return "ok"
+                      end if
+                    end repeat
+                  end repeat
+                  return "notfound"
+                end tell
+                """
+                focused = self?.runOsascript(script) == "ok"
+            }
+            if !focused, self?.appIsRunning("com.googlecode.iterm2") == true {
+                let script = """
+                tell application "iTerm2"
+                  repeat with w in windows
+                    repeat with tb in tabs of w
+                      repeat with s in sessions of tb
+                        if tty of s is "\(dev)" then
+                          select s
+                          activate
+                          return "ok"
+                        end if
+                      end repeat
+                    end repeat
+                  end repeat
+                  return "notfound"
+                end tell
+                """
+                focused = self?.runOsascript(script) == "ok"
+            }
+            if !focused {
+                DispatchQueue.main.async {
+                    let a = NSAlert()
+                    a.messageText = "Couldn't find that terminal window"
+                    a.informativeText = "No Terminal or iTerm2 tab owns \(dev). " +
+                        "If the session runs inside another app (VS Code, etc.), " +
+                        "NightOwl can't bring it forward."
+                    a.runModal()
+                }
+            }
+        }
+    }
+
+    func appIsRunning(_ bundleID: String) -> Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
+    }
+
+    func runOsascript(_ script: String) -> String {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        p.arguments = ["-e", script]
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = Pipe()
+        do { try p.run() } catch { return "" }
+        p.waitUntilExit()
+        return String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     @objc func revealClaudeFolder(_ sender: NSMenuItem) {
