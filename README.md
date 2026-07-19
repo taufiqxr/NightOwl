@@ -34,9 +34,12 @@ changes the setting.
 
 | Mode | Behavior | Use it when |
 |---|---|---|
-| 🦉 **Always Awake** | Never sleeps, plugged in or on battery | The Mac is a stationary appliance. **Don't forget it in a closed bag** — it will stay on and run hot. |
+| 🦉 **Always Awake** | Never sleeps, plugged in or on battery — with a **low-battery guard**: below 15% on battery, normal sleep is restored so a forgotten Mac can't run itself flat (re-arms at 18% or on the charger) | The Mac is a stationary appliance that occasionally goes mobile. |
 | 🔌 **Smart Auto** | Awake whenever plugged in; normal sleep on battery | Set-and-forget. Bag-safe by construction: unplugged = normal sleep. |
 | 💤 **Normal Sleep** | The macOS default | You want stock behavior back. |
+
+The menu always shows the live status, the power source, and — when on
+battery — the current charge percentage.
 
 Every mode change asks for your admin password via the standard macOS
 dialog — that's macOS protecting the power switch, not NightOwl phoning home.
@@ -76,15 +79,19 @@ To create that zip from source: `./build.sh --release` → `dist/NightOwl-<versi
 Transparency matters for a tool that asks for your password, so here is the
 complete list of what NightOwl does with admin rights:
 
-- **Always Awake** runs `pmset -a disablesleep 1`.
-- **Normal Sleep** runs `pmset -a disablesleep 0`.
-- **Smart Auto** installs a small root LaunchDaemon
+- **Always Awake** and **Smart Auto** install a small root LaunchDaemon
   (`/Library/LaunchDaemons/com.nightowl.auto.plist` +
-  `/usr/local/bin/nightowl-auto.sh` — ~20 lines of shell you can read in
-  `Resources/`) that checks the power source every 20 seconds and applies
-  the rule: AC → `disablesleep 1`, battery → `disablesleep 0`.
-- Switching modes always removes the daemon first, so it can never fight a
-  manual choice.
+  `/usr/local/bin/nightowl-auto.sh` — ~40 lines of shell you can read in
+  `Resources/`) that checks the power state every 20 seconds:
+  - in **auto** mode: AC → `disablesleep 1`, battery → `disablesleep 0`;
+  - in **always** mode: `disablesleep 1` everywhere, except the
+    low-battery guard — at ≤15% on battery it runs `disablesleep 0`
+    (re-arming at ≥18% or on AC). The guard runs as root precisely so it
+    works *unattended* — no password prompt when the Mac is forgotten in
+    a bag.
+- **Normal Sleep** removes the daemon and runs `pmset -a disablesleep 0`.
+- Switching modes always removes the daemon first, so it can never fight
+  the new choice.
 
 Nothing else. No network access, no analytics, no background helpers beyond
 the one daemon Smart Auto installs (and removes when you leave that mode).
@@ -101,10 +108,11 @@ running. Check the menu bar icon (🦉 = awake) or run
 script is still going with the lid shut.
 
 **Will Always Awake drain my battery?**
-Yes — that's exactly what it promises. Unplugged, the Mac stays fully on
-until the battery runs out, and in a closed bag it will also run warm.
-That's why 🔌 **Smart Auto** exists: awake on the charger, normal sleep on
-battery. If you carry your Mac around, use Smart Auto.
+It will use it, yes — unplugged, the Mac stays fully on. But it won't run
+itself flat: the built-in guard restores normal sleep below 15% battery
+(and re-arms once you're back on the charger or above 18%). If your Mac
+travels a lot, 🔌 **Smart Auto** is still the better fit: normal sleep the
+moment you unplug.
 
 **How do I verify what state my Mac is in right now?**
 ```bash

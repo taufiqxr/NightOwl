@@ -10,14 +10,17 @@ import ServiceManagement
 // switch that survives a lid close is `pmset disablesleep`, which needs
 // admin rights. NightOwl wraps it in three modes:
 //
-//   Always Awake : disablesleep 1, permanently (careful in a bag!)
-//   Smart Auto   : a root LaunchDaemon keeps the Mac awake on AC power
-//                  and restores normal sleep on battery (bag-safe)
-//   Normal Sleep : disablesleep 0 — the macOS default
+//   Always Awake : never sleeps — with a low-battery guard (a root daemon
+//                  restores normal sleep below 15% on battery, so a
+//                  forgotten Mac can't run itself flat; re-arms at 18%
+//                  or on AC)
+//   Smart Auto   : the same daemon in "auto" mode — awake on AC power,
+//                  normal sleep on battery (bag-safe)
+//   Normal Sleep : disablesleep 0 — the macOS default, no daemon
 //
 // Every mode change runs through the standard macOS admin-password dialog.
 
-let appVersion = "1.0.0"
+let appVersion = "1.1.0"
 let daemonLabel = "com.nightowl.auto"
 let daemonPlistPath = "/Library/LaunchDaemons/com.nightowl.auto.plist"
 let daemonScriptPath = "/usr/local/bin/nightowl-auto.sh"
@@ -49,8 +52,18 @@ func onACPower() -> Bool {
     shell("/usr/bin/pmset -g ps").contains("AC Power")
 }
 
-func autoModeInstalled() -> Bool {
-    FileManager.default.fileExists(atPath: daemonPlistPath)
+func batteryPercent() -> Int? {
+    let out = shell("/usr/bin/pmset -g ps")
+    guard let r = out.range(of: #"\d+%"#, options: .regularExpression) else { return nil }
+    return Int(out[r].dropLast())
+}
+
+/// nil = no daemon installed; "auto" or "always" = installed daemon's mode.
+/// A pre-1.1 plist (no mode argument) behaved as "auto".
+func installedDaemonMode() -> String? {
+    guard let s = try? String(contentsOfFile: daemonPlistPath, encoding: .utf8) else { return nil }
+    if s.contains("<string>always</string>") { return "always" }
+    return "auto"
 }
 
 // MARK: - Privileged execution
@@ -141,19 +154,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let awake = sleepDisabledNow()
-        let auto = autoModeInstalled()
+        let ac = onACPower()
+        let mode = installedDaemonMode()  // nil | "auto" | "always"
 
         addInfo(menu, awake ? "Your Mac will NOT sleep — even with the lid closed"
                             : "Your Mac sleeps normally — lid close = sleep")
-        addInfo(menu, onACPower() ? "Power: plugged in" : "Power: on battery")
+        var powerLine = ac ? "Power: plugged in" : "Power: on battery"
+        if !ac, let pct = batteryPercent() { powerLine += " — \(pct)%" }
+        addInfo(menu, powerLine)
+        if mode == "always" && !awake && !ac {
+            addInfo(menu, "Low-battery guard active — re-arms when charging")
+        }
         menu.addItem(.separator())
 
-        addMode(menu, "🦉 Always Awake — never sleep (careful in a bag)",
-                #selector(setAlwaysAwake), checked: !auto && awake)
+        addMode(menu, "🦉 Always Awake — never sleep (15% battery guard)",
+                #selector(setAlwaysAwake),
+                checked: mode == "always" || (mode == nil && awake))
         addMode(menu, "🔌 Smart Auto — awake when plugged in, sleep on battery",
-                #selector(setSmartAuto), checked: auto)
+                #selector(setSmartAuto), checked: mode == "auto")
         addMode(menu, "💤 Normal Sleep — macOS default",
-                #selector(setNormalSleep), checked: !auto && !awake)
+                #selector(setNormalSleep), checked: mode == nil && !awake)
 
         menu.addItem(.separator())
         let login = NSMenuItem(title: "Start at Login",
@@ -187,34 +207,45 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // MARK: Mode changes
-    // Every switch first removes the Smart Auto daemon (so it can never
-    // fight a manual choice), then applies the requested state — all in
-    // ONE admin-password prompt.
+    // Every switch first removes the daemon (so it can never fight the new
+    // choice), then applies the requested state — all in ONE admin prompt.
 
     var removeDaemonCmd: String {
         "launchctl bootout system/\(daemonLabel) 2>/dev/null; " +
         "rm -f '\(daemonPlistPath)' '\(daemonScriptPath)'; true"
     }
 
-    @objc func setAlwaysAwake() {
-        applyChange("\(removeDaemonCmd); /usr/bin/pmset -a disablesleep 1")
-    }
-
-    @objc func setNormalSleep() {
-        applyChange("\(removeDaemonCmd); /usr/bin/pmset -a disablesleep 0")
-    }
-
-    @objc func setSmartAuto() {
-        guard let res = Bundle.main.resourcePath else { return }
-        applyChange("""
+    /// Installs the root daemon in the given mode ("always" or "auto") and
+    /// applies the correct immediate state so there's no 20-second gap.
+    func installDaemonCmd(mode: String) -> String {
+        guard let res = Bundle.main.resourcePath else { return "false" }
+        let immediate = mode == "always"
+            ? "/usr/bin/pmset -a disablesleep 1"
+            : "if /usr/bin/pmset -g ps | /usr/bin/head -1 | /usr/bin/grep -q 'AC Power'; " +
+              "then /usr/bin/pmset -a disablesleep 1; else /usr/bin/pmset -a disablesleep 0; fi"
+        return """
             \(removeDaemonCmd); \
             mkdir -p /usr/local/bin; \
             cp -f '\(res)/nightowl-auto.sh' '\(daemonScriptPath)'; \
             chown root:wheel '\(daemonScriptPath)'; chmod 755 '\(daemonScriptPath)'; \
             cp -f '\(res)/\(daemonLabel).plist' '\(daemonPlistPath)'; \
+            /usr/bin/sed -i '' 's/MODE_PLACEHOLDER/\(mode)/' '\(daemonPlistPath)'; \
             chown root:wheel '\(daemonPlistPath)'; chmod 644 '\(daemonPlistPath)'; \
+            \(immediate); \
             launchctl bootstrap system '\(daemonPlistPath)'
-            """)
+            """
+    }
+
+    @objc func setAlwaysAwake() {
+        applyChange(installDaemonCmd(mode: "always"))
+    }
+
+    @objc func setSmartAuto() {
+        applyChange(installDaemonCmd(mode: "auto"))
+    }
+
+    @objc func setNormalSleep() {
+        applyChange("\(removeDaemonCmd); /usr/bin/pmset -a disablesleep 0")
     }
 
     func applyChange(_ cmd: String) {
@@ -257,8 +288,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Keeps your Mac awake — even with the lid closed.
 
             Modes:
-            🦉 Always Awake — the Mac never sleeps, plugged in or not. \
-            Don't forget it in a closed bag on battery.
+            🦉 Always Awake — the Mac never sleeps, plugged in or not. A \
+            low-battery guard restores normal sleep below 15% on battery \
+            (re-arms at 18% or on the charger), so a forgotten Mac can't \
+            run itself flat.
             🔌 Smart Auto — awake whenever it's plugged in, normal sleep \
             on battery. Set-and-forget.
             💤 Normal Sleep — the macOS default.
