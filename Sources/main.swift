@@ -20,7 +20,9 @@ import ServiceManagement
 //
 // Every mode change runs through the standard macOS admin-password dialog.
 
-let appVersion = "1.2.0"
+// Single source of truth for the version is Resources/Info.plist —
+// scripts/release.sh reads the same key to cut releases.
+let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
 let daemonLabel = "com.nightowl.auto"
 let daemonPlistPath = "/Library/LaunchDaemons/com.nightowl.auto.plist"
 let daemonScriptPath = "/usr/local/bin/nightowl-auto.sh"

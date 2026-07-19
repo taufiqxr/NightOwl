@@ -156,6 +156,20 @@ only controls whether the Mac is *allowed* to sleep.
 Quits the app, removes the Smart Auto daemon if present, restores normal
 sleep (`disablesleep 0`), and deletes `/Applications/NightOwl.app`.
 
+## Releasing (maintainers)
+
+Releases are driven by [CHANGELOG.md](CHANGELOG.md):
+
+1. Bump `CFBundleShortVersionString` / `CFBundleVersion` in
+   `Resources/Info.plist` (the app and release tooling both read it from
+   there — no other version to touch).
+2. Add a `## [<version>] — <date>` section to `CHANGELOG.md` describing
+   what changed.
+3. Commit, then run `./scripts/release.sh` — it refuses to ship without a
+   matching changelog section, a clean pushed tree, and passing tests,
+   then builds the zip and publishes the GitHub release using that
+   changelog section as the release notes.
+
 ## Requirements
 
 - macOS 13 Ventura or later (Apple Silicon or Intel)
