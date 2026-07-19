@@ -11,6 +11,9 @@ Perfect for running bots, agents, home servers, long downloads, or anything
 else that needs a Mac awake 24/7 — **turn a MacBook you already own into an
 always-on machine, no Mac mini required.**
 
+<img src="docs/menu.png" alt="NightOwl menu: sleep status, three modes with the low-battery guard, and the live Services list" width="560">
+
+
 ## Why NightOwl exists
 
 If you run anything on a MacBook that needs to stay alive (a home server, a
