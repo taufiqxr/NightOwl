@@ -3,7 +3,9 @@
 [![CI](https://github.com/taufiqxr/NightOwl/actions/workflows/ci.yml/badge.svg)](https://github.com/taufiqxr/NightOwl/actions/workflows/ci.yml)
 
 A tiny macOS menu bar app that keeps your Mac awake — **even with the lid
-closed**.
+closed** — and tells you what it's staying awake *for*: it lists the local
+servers and tunnels the Mac is hosting, and can watch any of them,
+alerting you the moment one goes down and again when it's back.
 
 Perfect for running bots, agents, home servers, long downloads, or anything
 else that needs a Mac awake 24/7 — **turn a MacBook you already own into an
