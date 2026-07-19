@@ -8,6 +8,17 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.11.0] — 2026-07-19
+
+### Changed
+- **Mode-aware menu bar icon** (user feedback: switching to Smart Auto
+  didn't change the icon): 🦉 Always Awake · 🔌 Smart Auto while plugged
+  in (awake because of power) · 💤 can sleep (Normal mode, or Smart Auto
+  on battery) · 🪫 guard tripped · ⚠️ still appended on trouble. The
+  tooltip names the mode and state.
+- Mode rows got their emoji back (🦉/🔌/💤) — compact labels, but
+  self-explaining and matching the menu bar icon language.
+
 ## [1.10.0] — 2026-07-19
 
 ### Changed
@@ -191,6 +202,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.11.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.11.0
 [1.10.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.10.0
 [1.9.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.9.0
 [1.8.1]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.8.1

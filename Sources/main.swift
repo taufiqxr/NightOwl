@@ -491,14 +491,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         let daemonDead = mode != nil && !daemonProcessRunning()
         let trouble = watchDown || daemonDead
 
+        // Mode-aware icon (v1.11, user feedback: switching modes must be
+        // visible in the bar): 🦉 Always Awake · 🔌 Smart Auto on power
+        // (awake because plugged in) · 💤 can sleep (Normal, or Smart
+        // Auto on battery) · 🪫 guard tripped · ⚠️ appended on trouble.
         let guardTripped = mode == "always" && !awake && !ac
-        let base = guardTripped ? "🪫" : (awake ? "🦉" : "💤")
+        let base: String
+        var tip: String
+        if guardTripped {
+            base = "🪫"
+            tip = "NightOwl — low-battery guard tripped; re-arms when charging"
+        } else if mode == "auto" {
+            base = awake ? "🔌" : "💤"
+            tip = awake ? "NightOwl — Smart Auto: plugged in, staying awake"
+                        : "NightOwl — Smart Auto: on battery, normal sleep"
+        } else {
+            base = awake ? "🦉" : "💤"
+            tip = awake ? "NightOwl — your Mac will NOT sleep (even lid closed)"
+                        : "NightOwl — your Mac sleeps normally (lid close = sleep)"
+        }
         statusItem.button?.title = trouble ? base + "⚠️" : base
-
-        var tip = awake
-            ? "NightOwl — your Mac will NOT sleep (even lid closed)"
-            : "NightOwl — your Mac sleeps normally (lid close = sleep)"
-        if guardTripped { tip = "NightOwl — low-battery guard tripped; re-arms when charging" }
         if watchDown { tip += " · a watched service is DOWN" }
         if daemonDead { tip += " · daemon not running (open menu to repair)" }
         statusItem.button?.toolTip = tip
@@ -580,12 +592,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         }
         menu.addItem(.separator())
 
-        addMode(menu, "Always Awake", #selector(setAlwaysAwake),
+        addMode(menu, "🦉 Always Awake", #selector(setAlwaysAwake),
                 checked: mode == "always" || (mode == nil && awake),
                 tooltip: "Never sleep, plugged in or not — with the 15% battery guard (careful in a closed bag)")
-        addMode(menu, "Smart Auto", #selector(setSmartAuto), checked: mode == "auto",
+        addMode(menu, "🔌 Smart Auto", #selector(setSmartAuto), checked: mode == "auto",
                 tooltip: "Awake when plugged in, normal sleep on battery — bag-safe")
-        addMode(menu, "Normal Sleep", #selector(setNormalSleep),
+        addMode(menu, "💤 Normal Sleep", #selector(setNormalSleep),
                 checked: mode == nil && !awake,
                 tooltip: "macOS default — closing the lid sleeps the Mac")
 

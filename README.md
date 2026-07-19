@@ -34,11 +34,11 @@ The menu bar icon expresses the full state at a glance:
 
 | Icon | Meaning |
 |---|---|
-| 🦉 | Your Mac will *not* sleep, lid closed or not — all well |
-| 🦉⚠️ | Awake, but a watched service is down or the daemon isn't running |
+| 🦉 | Always Awake — your Mac will *not* sleep, lid closed or not |
+| 🔌 | Smart Auto, plugged in — staying awake because it's on power |
+| 💤 | Can sleep — Normal mode, or Smart Auto running on battery |
 | 🪫 | The low-battery guard has tripped — sleep allowed until charging |
-| 💤 | Normal sleep mode; closing the lid sleeps the Mac |
-| 💤⚠️ | Sleep allowed *and* a watched service is down |
+| ⚠️ | Appended to any of the above when a watched service is down or the daemon isn't running (e.g. 🦉⚠️) |
 
 Hover for a tooltip naming the exact condition. The icon reflects the
 *actual* system state (checked every 10 seconds), not just what NightOwl
