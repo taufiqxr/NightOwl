@@ -8,6 +8,16 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.2.1] — 2026-07-19
+
+### Fixed
+- **Daemon logging was invisible.** v1.2.0 logged via `logger -t NightOwl`,
+  but `logger(1)` messages don't reliably surface in the unified log on
+  modern macOS — `log show` returned nothing, making the feature useless.
+  The daemon now appends to `/var/log/nightowl.log` (one line per state
+  change). Found within hours of the 1.2.0 release by a live monitoring
+  session watching a production install.
+
 ## [1.2.0] — 2026-07-19
 
 ### Added
@@ -55,6 +65,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.2.1]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.2.1
 [1.2.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.2.0
 [1.1.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.1.0
 [1.0.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.0.0

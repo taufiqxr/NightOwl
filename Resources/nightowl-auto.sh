@@ -11,16 +11,17 @@
 # the Mac is put to sleep immediately (pmset sleepnow) instead of waiting
 # for macOS to get around to it — deterministic for the closed-bag case.
 #
-# State changes are logged to the system log (tag: NightOwl — view with
-# `log show --predicate 'eventMessage CONTAINS "NightOwl"' --last 1h`
-# or Console.app).
+# State changes are logged to /var/log/nightowl.log (tiny volume — one
+# line per state change). Not the unified log: logger(1) messages don't
+# reliably surface in `log show` on modern macOS, verified live.
 #
 # Removed automatically when you pick a different mode in NightOwl.
 MODE="${1:-auto}"
 LOW=15
 REARM=18
+LOGFILE="/var/log/nightowl.log"
 
-log() { /usr/bin/logger -t NightOwl "$1"; }
+log() { echo "$(/bin/date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOGFILE" 2>/dev/null || true; }
 log "daemon started (mode=$MODE)"
 
 while true; do

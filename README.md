@@ -98,10 +98,9 @@ complete list of what NightOwl does with admin rights:
   closed (guard trip in a bag, or unplugging a closed Smart Auto Mac),
   it puts the Mac to sleep immediately (`pmset sleepnow`) instead of
   waiting for macOS to get around to it.
-- The daemon logs every state change to the system log — view it with
-  Console.app or:
+- The daemon logs every state change (one line each — tiny volume) to:
   ```bash
-  log show --predicate 'eventMessage CONTAINS "NightOwl"' --last 1h
+  tail /var/log/nightowl.log
   ```
 - The menu self-checks the daemon: if the process has died, or an app
   update shipped a newer daemon script than the one installed, the menu

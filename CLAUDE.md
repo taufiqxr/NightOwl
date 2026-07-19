@@ -48,7 +48,10 @@ Two pieces:
   hysteresis band holds current state between the two). If sleep
   permission is restored while the lid is closed (ioreg
   AppleClamshellState), it fires `pmset sleepnow` — deterministic for the
-  closed-bag case. Every state change logs via `logger -t NightOwl`.
+  closed-bag case. Every state change appends a line to
+  `/var/log/nightowl.log` — NOT the unified log: `logger(1)` messages
+  don't reliably surface in `log show` on modern macOS (verified live;
+  that's why 1.2.1 exists).
 
 App-side daemon awareness (all in main.swift): `installedDaemonMode()`
 parses the installed plist (a pre-1.1 plist with no mode arg reads as
