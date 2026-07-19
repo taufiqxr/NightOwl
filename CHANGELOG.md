@@ -8,6 +8,18 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.7.0] — 2026-07-19
+
+### Added
+- **Claude terminals submenu**: lists every open Claude Code terminal
+  session, labeled by the project folder it's working in (plus its tty),
+  with a submenu showing the full path, PID, and running time, and
+  **Reveal folder in Finder** / **Copy folder path** actions. Detection:
+  interactive `claude` CLI processes (real tty; background helpers
+  filtered), working directory via `lsof`. The section hides entirely
+  when no sessions are running. `--print-claude-sessions` CLI flag for
+  verification.
+
 ## [1.6.0] — 2026-07-19
 
 ### Changed
@@ -124,6 +136,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.7.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.7.0
 [1.6.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.6.0
 [1.5.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.5.0
 [1.4.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.4.0

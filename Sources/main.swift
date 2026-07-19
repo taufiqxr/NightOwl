@@ -137,6 +137,37 @@ func detectTunnels() -> [(name: String, pid: Int)] {
     return found
 }
 
+// MARK: - Claude Code terminal sessions (v1.7)
+// Interactive `claude` CLI processes: comm == "claude" with a real
+// controlling tty (background helpers like bg-pty-host run on ?? and are
+// skipped). cwd via lsof tells WHICH project each terminal is in.
+
+struct ClaudeSession {
+    let pid: Int
+    let tty: String
+    let etime: String
+    let cwd: String
+}
+
+func detectClaudeSessions() -> [ClaudeSession] {
+    var sessions: [ClaudeSession] = []
+    let out = shell("/bin/ps axo pid,tty,etime,comm")
+    for line in out.split(separator: "\n").dropFirst() {
+        let cols = line.split(separator: " ", omittingEmptySubsequences: true)
+        guard cols.count == 4,
+              let pid = Int(cols[0]),
+              cols[1].hasPrefix("ttys"),
+              cols[3] == "claude" else { continue }
+        let cwdOut = shell("/usr/sbin/lsof -a -p \(pid) -d cwd -Fn 2>/dev/null")
+        let cwd = cwdOut.split(separator: "\n")
+            .first(where: { $0.hasPrefix("n") })
+            .map { String($0.dropFirst()) } ?? "?"
+        sessions.append(ClaudeSession(pid: pid, tty: String(cols[1]),
+                                      etime: String(cols[2]), cwd: cwd))
+    }
+    return sessions.sorted { $0.tty < $1.tty }
+}
+
 // MARK: - Privileged execution
 
 enum AdminResult {
@@ -442,6 +473,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
 
         menu.addItem(.separator())
         addServicesSection(menu)
+        addClaudeSection(menu)
 
         menu.addItem(.separator())
         let login = NSMenuItem(title: "Start at Login",
@@ -572,6 +604,54 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
             sub.addItem(w)
             item.submenu = sub
             serversMenu.addItem(item)
+        }
+    }
+
+    // Open Claude Code terminal sessions, labeled by the project folder
+    // each one is working in. Hidden entirely when none are running.
+    func addClaudeSection(_ menu: NSMenu) {
+        let sessions = detectClaudeSessions()
+        guard !sessions.isEmpty else { return }
+
+        let top = NSMenuItem(title: "Claude terminals (\(sessions.count))",
+                             action: nil, keyEquivalent: "")
+        let claudeMenu = NSMenu()
+        top.submenu = claudeMenu
+        menu.addItem(top)
+
+        for s in sessions {
+            let folder = s.cwd == "?" ? "unknown folder"
+                : URL(fileURLWithPath: s.cwd).lastPathComponent
+            let ttyShort = s.tty.replacingOccurrences(of: "ttys", with: "tty ")
+            let item = NSMenuItem(title: "\(folder)  (\(ttyShort))",
+                                  action: nil, keyEquivalent: "")
+            let sub = NSMenu()
+            let pathInfo = NSMenuItem(title: s.cwd, action: nil, keyEquivalent: "")
+            pathInfo.isEnabled = false
+            sub.addItem(pathInfo)
+            let procInfo = NSMenuItem(title: "PID \(s.pid) · running \(s.etime)",
+                                      action: nil, keyEquivalent: "")
+            procInfo.isEnabled = false
+            sub.addItem(procInfo)
+            sub.addItem(.separator())
+            let reveal = NSMenuItem(title: "Reveal folder in Finder",
+                                    action: #selector(revealClaudeFolder(_:)), keyEquivalent: "")
+            reveal.target = self
+            reveal.representedObject = s.cwd
+            sub.addItem(reveal)
+            let copy = NSMenuItem(title: "Copy folder path",
+                                  action: #selector(copyServiceURL(_:)), keyEquivalent: "")
+            copy.target = self
+            copy.representedObject = s.cwd
+            sub.addItem(copy)
+            item.submenu = sub
+            claudeMenu.addItem(item)
+        }
+    }
+
+    @objc func revealClaudeFolder(_ sender: NSMenuItem) {
+        if let path = sender.representedObject as? String, path != "?" {
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
         }
     }
 
@@ -721,6 +801,12 @@ if CommandLine.arguments.contains("--print-services") {
     }
     for t in detectTunnels() {
         print("\(t.name)\tpid=\(t.pid)\ttunnel")
+    }
+    exit(0)
+}
+if CommandLine.arguments.contains("--print-claude-sessions") {
+    for s in detectClaudeSessions() {
+        print("\(s.tty)\tpid=\(s.pid)\t\(s.etime)\t\(s.cwd)")
     }
     exit(0)
 }

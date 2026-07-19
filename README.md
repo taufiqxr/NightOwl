@@ -79,6 +79,15 @@ Design choices worth knowing:
 - Servers running **as root** aren't visible (detection uses your user
   session's `lsof`) — known limitation.
 
+### Claude terminals
+
+If you use [Claude Code](https://claude.com/claude-code), a **Claude
+terminals (N)** item lists every open session, labeled by the project
+folder it's working in — hover one for the full path, PID, running time,
+and **Reveal in Finder** / **Copy path** actions. Handy when you have
+half a dozen terminals open and can't remember which is which. The
+section disappears entirely when no sessions are running.
+
 ### Watching services
 
 Click **Watch** in any service's submenu and NightOwl checks it every 60
