@@ -8,6 +8,29 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.4.0] — 2026-07-19
+
+### Added
+- **Service watch with down/up alerts**: click "Watch" in any service's
+  submenu and NightOwl checks it every 60 seconds, posting a macOS
+  notification when it goes down and when it comes back. Watches are
+  identified by port (they survive service restarts and app relaunches —
+  persisted in preferences); tunnels are watched by process name. A
+  watched service that goes down stays visible in the menu, marked
+  "⚠️ DOWN", so it can still be unwatched. The first check after a watch
+  is added or the app relaunches primes silently — no false alarm when
+  services simply haven't started yet.
+- **Guard and integrity notifications**: when the low-battery guard trips
+  ("🛟 normal sleep restored") or re-arms ("🦉 staying awake again"),
+  NightOwl posts a notification instead of acting silently. It also
+  notifies if `disablesleep` changes *outside* NightOwl (no daemon
+  installed, state flipped by something else). Smart Auto's routine
+  plug/unplug flips stay silent by design, as do changes you just made
+  yourself in the menu.
+- Notifications respect the system permission: an explicit "don't allow"
+  is honored (NightOwl stays quiet); only a broken registration falls
+  back to AppleScript notifications.
+
 ## [1.3.0] — 2026-07-19
 
 ### Added
@@ -81,6 +104,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.4.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.4.0
 [1.3.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.3.0
 [1.2.1]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.2.1
 [1.2.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.2.0

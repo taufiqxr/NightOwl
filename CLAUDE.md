@@ -70,6 +70,17 @@ URL per port. HARD RULE: show process name/port/PID only — never argv
 binary's `--print-services` flag dumps detection and exits (verification
 hook).
 
+Watch + notifications (v1.4, app-side only): watches persist in
+UserDefaults keyed by PORT (pids churn) / tunnel process name; 60s
+`watchTimer` → `runWatchChecks()` notifies on up/down TRANSITIONS only
+(first observation primes silently — relaunch before services start must
+not false-alarm). Guard/integrity notifications come from `refreshIcon()`
+transition detection (`prevAwake`), suppressed within 25s of a
+user-initiated mode change (`lastModeChangeAt`) and for Smart Auto's
+routine flips. Notification rules: UNUserNotificationCenter; explicit
+user denial = stay silent (never bypass); only registration *errors*
+(ad-hoc signing) fall back to osascript `display notification`.
+
 ## Conventions & gotchas
 
 - **Version lives ONLY in `Resources/Info.plist`** — main.swift reads

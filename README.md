@@ -65,6 +65,23 @@ Design choices worth knowing:
 - Servers running **as root** aren't visible (detection uses your user
   session's `lsof`) — known limitation.
 
+### Watching services
+
+Click **Watch** in any service's submenu and NightOwl checks it every 60
+seconds, posting a macOS notification when it goes down and another when
+it comes back — so an always-awake Mac can't silently become a uselessly
+awake Mac. Watches survive service restarts and app relaunches (identity
+is the port, not the PID), a downed watched service stays visible in the
+menu marked **⚠️ DOWN** until you unwatch it, and the first check after a
+relaunch primes silently so services that just haven't started yet don't
+false-alarm.
+
+NightOwl also notifies when the **low-battery guard** acts (trip and
+re-arm) and when the sleep setting is changed *outside* NightOwl. Smart
+Auto's routine plug/unplug transitions stay silent by design. All of this
+respects the system notification permission — denying it keeps NightOwl
+quiet.
+
 Every mode change asks for your admin password via the standard macOS
 dialog — that's macOS protecting the power switch, not NightOwl phoning home.
 

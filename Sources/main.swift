@@ -1,5 +1,6 @@
 import Cocoa
 import ServiceManagement
+import UserNotifications
 
 // NightOwl — a menu bar utility that keeps your Mac awake, even with the
 // lid closed.
@@ -179,9 +180,29 @@ func runAdmin(_ cmd: String, completion: @escaping (AdminResult) -> Void) {
 
 // MARK: - App
 
-class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
+                   UNUserNotificationCenterDelegate {
     var statusItem: NSStatusItem!
     var timer: Timer?
+    var watchTimer: Timer?
+
+    // Notifications: UN center when authorized; osascript fallback only
+    // when registration ERRORS (ad-hoc signing quirks) — an explicit user
+    // denial is respected, never bypassed.
+    var notificationsDenied = false
+    var useFallbackNotify = false
+
+    // Sleep-state transition tracking (guard trip / external change).
+    var prevAwake: Bool?
+    var lastModeChangeAt = Date.distantPast
+
+    // Service watch: identity is the PORT (pids change across restarts);
+    // tunnels are watched by process name. Persisted in UserDefaults.
+    var watchedPorts: Set<Int> = []
+    var watchedTunnels: Set<String> = []
+    var portLabels: [Int: String] = [:]
+    var lastPortUp: [Int: Bool] = [:]
+    var lastTunnelUp: [String: Bool] = [:]
 
     func applicationDidFinishLaunching(_ n: Notification) {
         // Single instance: a second copy would just add a second owl.
@@ -208,7 +229,119 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.refreshIcon() }
 
+        loadWatches()
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        center.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, err in
+            if err != nil {
+                self?.useFallbackNotify = true      // registration broken → osascript
+            } else if !granted {
+                self?.notificationsDenied = true    // user said no → stay quiet
+            }
+        }
+        watchTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.runWatchChecks()
+        }
+        watchTimer?.tolerance = 10
+
         offerLoginItemOnFirstRun()
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler:
+                                    @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+
+    func notify(_ title: String, _ body: String) {
+        if notificationsDenied { return }
+        if useFallbackNotify {
+            let esc = { (s: String) in s.replacingOccurrences(of: "\"", with: "\\\"") }
+            shell("/usr/bin/osascript -e 'display notification \"\(esc(body))\" with title \"\(esc(title))\"'")
+            return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+
+    // MARK: Watch persistence
+
+    func loadWatches() {
+        let d = UserDefaults.standard
+        watchedPorts = Set(d.array(forKey: "WatchedPorts") as? [Int] ?? [])
+        watchedTunnels = Set(d.array(forKey: "WatchedTunnels") as? [String] ?? [])
+        if let raw = d.dictionary(forKey: "WatchedPortLabels") as? [String: String] {
+            for (k, v) in raw { if let p = Int(k) { portLabels[p] = v } }
+        }
+    }
+
+    func saveWatches() {
+        let d = UserDefaults.standard
+        d.set(Array(watchedPorts), forKey: "WatchedPorts")
+        d.set(Array(watchedTunnels), forKey: "WatchedTunnels")
+        d.set(Dictionary(uniqueKeysWithValues: portLabels.map { (String($0.key), $0.value) }),
+              forKey: "WatchedPortLabels")
+    }
+
+    // MARK: Watch checks (every 60s)
+    // Transitions only: the first observation of a watch primes silently,
+    // so an app relaunch before services start doesn't false-alarm.
+
+    func runWatchChecks() {
+        guard !watchedPorts.isEmpty || !watchedTunnels.isEmpty else { return }
+        let livePorts = Set(detectLocalServices().flatMap { $0.ports })
+        for port in watchedPorts {
+            let up = livePorts.contains(port)
+            if let prev = lastPortUp[port], prev != up {
+                let label = portLabels[port] ?? "service"
+                notify(up ? "✅ \(label) :\(port) is back" : "⚠️ \(label) :\(port) went down",
+                       up ? "Listening again on localhost:\(port)."
+                          : "Nothing is listening on localhost:\(port) anymore.")
+            }
+            lastPortUp[port] = up
+        }
+        let liveTunnels = Set(detectTunnels().map { $0.name })
+        for t in watchedTunnels {
+            let up = liveTunnels.contains(t)
+            if let prev = lastTunnelUp[t], prev != up {
+                notify(up ? "✅ \(t) tunnel is back" : "⚠️ \(t) tunnel went down",
+                       up ? "The \(t) process is running again."
+                          : "The \(t) process is no longer running.")
+            }
+            lastTunnelUp[t] = up
+        }
+        lastPortUp = lastPortUp.filter { watchedPorts.contains($0.key) }
+        lastTunnelUp = lastTunnelUp.filter { watchedTunnels.contains($0.key) }
+    }
+
+    @objc func toggleWatchPort(_ sender: NSMenuItem) {
+        guard let info = sender.representedObject as? [String: Any],
+              let port = info["port"] as? Int else { return }
+        if watchedPorts.contains(port) {
+            watchedPorts.remove(port)
+            lastPortUp.removeValue(forKey: port)
+        } else {
+            watchedPorts.insert(port)
+            if let label = info["label"] as? String { portLabels[port] = label }
+            lastPortUp[port] = true   // only watchable from a live listing
+        }
+        saveWatches()
+    }
+
+    @objc func toggleWatchTunnel(_ sender: NSMenuItem) {
+        guard let name = sender.representedObject as? String else { return }
+        if watchedTunnels.contains(name) {
+            watchedTunnels.remove(name)
+            lastTunnelUp.removeValue(forKey: name)
+        } else {
+            watchedTunnels.insert(name)
+            lastTunnelUp[name] = true
+        }
+        saveWatches()
     }
 
     // On the very first launch, enable Start at Login (visible and
@@ -226,6 +359,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.button?.toolTip = awake
             ? "NightOwl — your Mac will NOT sleep (even lid closed)"
             : "NightOwl — your Mac sleeps normally (lid close = sleep)"
+
+        // Sleep-state transitions the user didn't just cause themselves:
+        // the guard acting (mode always), or an outside change (mode nil).
+        // Smart Auto's routine plug/unplug flips are deliberately silent.
+        if let prev = prevAwake, prev != awake,
+           Date().timeIntervalSince(lastModeChangeAt) > 25 {
+            let mode = installedDaemonMode()
+            if mode == "always" {
+                notify(awake ? "🦉 Staying awake again"
+                             : "🛟 Low-battery guard tripped",
+                       awake ? "Battery recovered or power is back — sleep is blocked again."
+                             : "Normal sleep restored so the battery can't run flat. Re-arms when charging.")
+            } else if mode == nil {
+                notify("Sleep setting changed outside NightOwl",
+                       awake ? "disablesleep was turned ON by something else."
+                             : "disablesleep was turned OFF — your Mac can sleep now.")
+            }
+        }
+        prevAwake = awake
     }
 
     // MARK: Menu
@@ -322,6 +474,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 copy.representedObject = url
                 sub.addItem(copy)
             }
+            sub.addItem(.separator())
+            for port in s.ports {
+                let watched = watchedPorts.contains(port)
+                let w = NSMenuItem(title: watched ? "Watching :\(port) — click to stop"
+                                                  : "Watch :\(port) — alert if it stops",
+                                   action: #selector(toggleWatchPort(_:)), keyEquivalent: "")
+                w.target = self
+                w.state = watched ? .on : .off
+                w.representedObject = ["port": port, "label": s.name] as [String: Any]
+                sub.addItem(w)
+            }
             item.submenu = sub
             menu.addItem(item)
         }
@@ -336,6 +499,48 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                   action: nil, keyEquivalent: "")
             note.isEnabled = false
             sub.addItem(note)
+            sub.addItem(.separator())
+            let watched = watchedTunnels.contains(t.name)
+            let w = NSMenuItem(title: watched ? "Watching tunnel — click to stop"
+                                              : "Watch tunnel — alert if it stops",
+                               action: #selector(toggleWatchTunnel(_:)), keyEquivalent: "")
+            w.target = self
+            w.state = watched ? .on : .off
+            w.representedObject = t.name
+            sub.addItem(w)
+            item.submenu = sub
+            menu.addItem(item)
+        }
+
+        // Watched things that are DOWN disappear from live detection —
+        // keep them visible (with their alert state) so they can still be
+        // unwatched.
+        let livePorts = Set(services.flatMap { $0.ports })
+        for port in watchedPorts.subtracting(livePorts).sorted() {
+            let label = portLabels[port] ?? "service"
+            let item = NSMenuItem(title: "⚠️ \(label)  :\(port) — DOWN", action: nil, keyEquivalent: "")
+            let sub = NSMenu()
+            let info = NSMenuItem(title: "Nothing listening on :\(port) right now",
+                                  action: nil, keyEquivalent: "")
+            info.isEnabled = false
+            sub.addItem(info)
+            let w = NSMenuItem(title: "Stop watching :\(port)",
+                               action: #selector(toggleWatchPort(_:)), keyEquivalent: "")
+            w.target = self
+            w.representedObject = ["port": port, "label": label] as [String: Any]
+            sub.addItem(w)
+            item.submenu = sub
+            menu.addItem(item)
+        }
+        let liveTunnels = Set(tunnels.map { $0.name })
+        for t in watchedTunnels.subtracting(liveTunnels).sorted() {
+            let item = NSMenuItem(title: "⚠️ \(t)  — tunnel DOWN", action: nil, keyEquivalent: "")
+            let sub = NSMenu()
+            let w = NSMenuItem(title: "Stop watching \(t)",
+                               action: #selector(toggleWatchTunnel(_:)), keyEquivalent: "")
+            w.target = self
+            w.representedObject = t
+            sub.addItem(w)
             item.submenu = sub
             menu.addItem(item)
         }
@@ -418,7 +623,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applyChange(_ cmd: String) {
+        lastModeChangeAt = Date()
         runAdmin(cmd) { [weak self] result in
+            self?.lastModeChangeAt = Date()
             self?.refreshIcon()
             switch result {
             case .success, .cancelled:
