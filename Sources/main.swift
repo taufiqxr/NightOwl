@@ -550,38 +550,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         let ac = onACPower()
         let mode = installedDaemonMode()  // nil | "auto" | "always"
 
-        addInfo(menu, awake ? "Your Mac will NOT sleep — even with the lid closed"
-                            : "Your Mac sleeps normally — lid close = sleep")
-        var powerLine = ac ? "Power: plugged in" : "Power: on battery"
-        if !ac, let pct = batteryPercent() { powerLine += " — \(pct)%" }
-        addInfo(menu, powerLine)
-        if mode == "always" && !awake && !ac {
-            addInfo(menu, "Low-battery guard active — re-arms when charging")
-        }
+        // Compact status: one line, full explanation in the tooltip
+        // (v1.10 lean pass — labels terse, hover for prose).
+        let guardTripped = mode == "always" && !awake && !ac
+        let stateLabel = guardTripped ? "🪫 Guard active" : (awake ? "🦉 Awake" : "💤 Can sleep")
+        var powerLabel = ac ? "plugged in" : "battery"
+        if !ac, let pct = batteryPercent() { powerLabel += " \(pct)%" }
+        let statusTip = guardTripped
+            ? "Low-battery guard tripped — normal sleep allowed until charging; re-arms at 18% or on power"
+            : (awake ? "Your Mac will not sleep — even with the lid closed"
+                     : "Your Mac sleeps normally — closing the lid sleeps it")
+        addInfo(menu, "\(stateLabel) · \(powerLabel)", tooltip: statusTip)
 
         // Daemon self-checks: the file can exist while the process is dead,
         // and an app upgrade can leave an older script installed. Both are
         // one click to fix (reinstalls the daemon in the same mode).
         if mode != nil && !daemonProcessRunning() {
-            let repair = NSMenuItem(title: "⚠️ Daemon not running — click to repair",
+            let repair = NSMenuItem(title: "⚠️ Repair daemon",
                                     action: #selector(repairDaemon), keyEquivalent: "")
             repair.target = self
+            repair.toolTip = "The daemon is installed but its process isn't running — click to reinstall it in the current mode"
             menu.addItem(repair)
         } else if mode != nil && daemonScriptOutdated() {
-            let update = NSMenuItem(title: "⬆️ Daemon update available — click to install",
+            let update = NSMenuItem(title: "⬆️ Update daemon",
                                     action: #selector(repairDaemon), keyEquivalent: "")
             update.target = self
+            update.toolTip = "This app version ships a newer daemon than the installed one — click to update (one password prompt)"
             menu.addItem(update)
         }
         menu.addItem(.separator())
 
-        addMode(menu, "🦉 Always Awake — never sleep (15% battery guard)",
-                #selector(setAlwaysAwake),
-                checked: mode == "always" || (mode == nil && awake))
-        addMode(menu, "🔌 Smart Auto — awake when plugged in, sleep on battery",
-                #selector(setSmartAuto), checked: mode == "auto")
-        addMode(menu, "💤 Normal Sleep — macOS default",
-                #selector(setNormalSleep), checked: mode == nil && !awake)
+        addMode(menu, "Always Awake", #selector(setAlwaysAwake),
+                checked: mode == "always" || (mode == nil && awake),
+                tooltip: "Never sleep, plugged in or not — with the 15% battery guard (careful in a closed bag)")
+        addMode(menu, "Smart Auto", #selector(setSmartAuto), checked: mode == "auto",
+                tooltip: "Awake when plugged in, normal sleep on battery — bag-safe")
+        addMode(menu, "Normal Sleep", #selector(setNormalSleep),
+                checked: mode == nil && !awake,
+                tooltip: "macOS default — closing the lid sleeps the Mac")
 
         menu.addItem(.separator())
         addServicesSection(menu)
@@ -636,25 +642,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
             sub.addItem(.separator())
             for port in s.ports {
                 let url = "http://localhost:\(port)"
-                let open = NSMenuItem(title: "Open \(url)",
+                let open = NSMenuItem(title: "Open :\(port)",
                                       action: #selector(openServiceURL(_:)), keyEquivalent: "")
                 open.target = self
                 open.representedObject = url
+                open.toolTip = url
                 sub.addItem(open)
-                let copy = NSMenuItem(title: "Copy \(url)",
+                let copy = NSMenuItem(title: "Copy :\(port)",
                                       action: #selector(copyServiceURL(_:)), keyEquivalent: "")
                 copy.target = self
                 copy.representedObject = url
+                copy.toolTip = "Copy \(url)"
                 sub.addItem(copy)
             }
             sub.addItem(.separator())
             for port in s.ports {
                 let watched = watchedPorts.contains(port)
-                let w = NSMenuItem(title: watched ? "Watching :\(port) — click to stop"
-                                                  : "Watch :\(port) — alert if it stops",
+                let w = NSMenuItem(title: "Watch :\(port)",
                                    action: #selector(toggleWatchPort(_:)), keyEquivalent: "")
                 w.target = self
                 w.state = watched ? .on : .off
+                w.toolTip = watched ? "Watching — click to stop down/up alerts"
+                                    : "Alert when this port stops listening (checked every 60s)"
                 w.representedObject = ["port": port, "label": s.name] as [String: Any]
                 sub.addItem(w)
             }
@@ -663,22 +672,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         }
 
         for t in tunnels {
-            let item = NSMenuItem(title: "\(t.name)  — tunnel active", action: nil, keyEquivalent: "")
+            let item = NSMenuItem(title: "\(t.name)  — tunnel", action: nil, keyEquivalent: "")
+            item.toolTip = "Outbound tunnel — no local URL"
             let sub = NSMenu()
             let info = NSMenuItem(title: "PID \(t.pid)", action: nil, keyEquivalent: "")
             info.isEnabled = false
             sub.addItem(info)
-            let note = NSMenuItem(title: "Outbound tunnel — no local URL",
-                                  action: nil, keyEquivalent: "")
-            note.isEnabled = false
-            sub.addItem(note)
             sub.addItem(.separator())
             let watched = watchedTunnels.contains(t.name)
-            let w = NSMenuItem(title: watched ? "Watching tunnel — click to stop"
-                                              : "Watch tunnel — alert if it stops",
+            let w = NSMenuItem(title: "Watch tunnel",
                                action: #selector(toggleWatchTunnel(_:)), keyEquivalent: "")
             w.target = self
             w.state = watched ? .on : .off
+            w.toolTip = watched ? "Watching — click to stop down/up alerts"
+                                : "Alert when the \(t.name) process stops (checked every 60s)"
             w.representedObject = t.name
             sub.addItem(w)
             item.submenu = sub
@@ -750,19 +757,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
             procInfo.isEnabled = false
             sub.addItem(procInfo)
             sub.addItem(.separator())
-            let jump = NSMenuItem(title: "Jump to this terminal",
+            let jump = NSMenuItem(title: "Jump to terminal",
                                   action: #selector(jumpToClaudeSession(_:)), keyEquivalent: "")
             jump.target = self
+            jump.toolTip = "Bring this session's Terminal/iTerm2 tab to the front"
             jump.representedObject = s.tty
             sub.addItem(jump)
-            let reveal = NSMenuItem(title: "Reveal folder in Finder",
+            let reveal = NSMenuItem(title: "Reveal in Finder",
                                     action: #selector(revealClaudeFolder(_:)), keyEquivalent: "")
             reveal.target = self
             reveal.representedObject = s.cwd
             sub.addItem(reveal)
-            let copy = NSMenuItem(title: "Copy folder path",
+            let copy = NSMenuItem(title: "Copy path",
                                   action: #selector(copyServiceURL(_:)), keyEquivalent: "")
             copy.target = self
+            copy.toolTip = s.cwd
             copy.representedObject = s.cwd
             sub.addItem(copy)
             item.submenu = sub
@@ -868,16 +877,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         }
     }
 
-    func addInfo(_ menu: NSMenu, _ title: String) {
+    func addInfo(_ menu: NSMenu, _ title: String, tooltip: String? = nil) {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
+        item.toolTip = tooltip
         menu.addItem(item)
     }
 
-    func addMode(_ menu: NSMenu, _ title: String, _ sel: Selector, checked: Bool) {
+    func addMode(_ menu: NSMenu, _ title: String, _ sel: Selector, checked: Bool,
+                 tooltip: String? = nil) {
         let item = NSMenuItem(title: title, action: sel, keyEquivalent: "")
         item.target = self
         item.state = checked ? .on : .off
+        item.toolTip = tooltip
         menu.addItem(item)
     }
 

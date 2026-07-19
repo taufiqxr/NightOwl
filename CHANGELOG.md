@@ -8,6 +8,16 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.10.0] — 2026-07-19
+
+### Changed
+- **Compact menu**: labels are now terse — one status line ("🦉 Awake ·
+  plugged in"), bare mode names, short actions ("Open :8899", "Copy
+  URL", "Jump to terminal", "Watch :8899" with a checkmark) — and every
+  explanation moved to hover tooltips. Same information, far less
+  reading. Mode descriptions, guard details, watch behavior, and full
+  URLs all live in the tooltips now.
+
 ## [1.9.0] — 2026-07-19
 
 ### Added
@@ -181,6 +191,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.10.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.10.0
 [1.9.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.9.0
 [1.8.1]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.8.1
 [1.8.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.8.0
