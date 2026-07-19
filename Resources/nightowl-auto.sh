@@ -21,7 +21,10 @@ LOW=15
 REARM=18
 LOGFILE="/var/log/nightowl.log"
 
-log() { echo "$(/bin/date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOGFILE" 2>/dev/null || true; }
+# Braces so a failed >> open (unwritable LOGFILE, e.g. non-root test runs)
+# is silenced too — a trailing 2>/dev/null can't catch the shell's own
+# redirect error.
+log() { { echo "$(/bin/date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOGFILE"; } 2>/dev/null || true; }
 log "daemon started (mode=$MODE)"
 
 while true; do
