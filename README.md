@@ -1,9 +1,15 @@
 # NightOwl 🦉
 
-[![CI](https://github.com/taufiqxr/NightOwl/actions/workflows/ci.yml/badge.svg)](https://github.com/taufiqxr/NightOwl/actions/workflows/ci.yml)
+**Never let a closed lid kill your server again.**
 
-A tiny macOS menu bar app that keeps your Mac awake — **even with the lid
-closed** — and tells you what it's staying awake *for*: it lists the local
+[![CI](https://github.com/taufiqxr/NightOwl/actions/workflows/ci.yml/badge.svg)](https://github.com/taufiqxr/NightOwl/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/taufiqxr/NightOwl)](https://github.com/taufiqxr/NightOwl/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![macOS 13+](https://img.shields.io/badge/macOS-13%2B-black)
+
+A tiny menu bar app that keeps your Mac awake — **even with the lid
+closed, no external display needed** (the thing `caffeinate` and
+Amphetamine can't do) — and tells you what it's staying awake *for*: it lists the local
 servers and tunnels the Mac is hosting (and can watch any of them,
 alerting you the moment one goes down and again when it's back), and if
 you use Claude Code, it doubles as a **session switcher** — every open
@@ -13,7 +19,7 @@ Perfect for running bots, agents, home servers, long downloads, or anything
 else that needs a Mac awake 24/7 — **turn a MacBook you already own into an
 always-on machine, no Mac mini required.**
 
-<img src="docs/menu.png" alt="NightOwl menu: sleep status, three modes with the low-battery guard, and the live Services list" width="560">
+<img src="docs/menu.png" alt="NightOwl menu: sleep status, three modes with the low-battery guard, live Servers list, and the Claude session switcher expanded" width="680">
 
 
 ## Why NightOwl exists
