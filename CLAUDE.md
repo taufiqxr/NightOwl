@@ -61,6 +61,15 @@ process is dead); `daemonScriptOutdated()` compares md5 of installed vs
 bundled script. Dead process → "⚠️ click to repair" menu item; stale
 script → "⬆️ click to install"; both reinstall in the current mode.
 
+Services menu (v1.3, app-side only): `detectLocalServices()` parses
+`lsof -nP -iTCP -sTCP:LISTEN` (per-pid grouping, `serviceDenylist` prefix
+filter for system/browser noise), `detectTunnels()` pgreps for
+cloudflared/ngrok. Interactive submenus expose PID + Open/Copy localhost
+URL per port. HARD RULE: show process name/port/PID only — never argv
+(command lines can carry tunnel tokens). Runs only on menu open. The app
+binary's `--print-services` flag dumps detection and exits (verification
+hook).
+
 ## Conventions & gotchas
 
 - **Version lives ONLY in `Resources/Info.plist`** — main.swift reads

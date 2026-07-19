@@ -8,6 +8,22 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.3.0] — 2026-07-19
+
+### Added
+- **Services menu**: the menu now lists the local servers and tunnels the
+  always-awake Mac is hosting — the things you're keeping it awake *for*.
+  Each service opens a submenu with its PID and per-port
+  **Open http://localhost:PORT** / **Copy URL** actions; tunnel clients
+  (`cloudflared`, `ngrok`) are detected by process since they dial out
+  rather than listen. Detection runs only when the menu opens (one `lsof`
+  call), system/browser listeners are filtered out, and only process
+  name + port + PID are ever shown — never command lines, which can carry
+  secrets like tunnel tokens. Servers running as root are not visible
+  (user-session `lsof`); documented limitation.
+- `--print-services` CLI flag on the app binary: dumps detection to
+  stdout and exits, for verification/debugging.
+
 ## [1.2.1] — 2026-07-19
 
 ### Fixed
@@ -65,6 +81,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.3.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.3.0
 [1.2.1]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.2.1
 [1.2.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.2.0
 [1.1.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.1.0

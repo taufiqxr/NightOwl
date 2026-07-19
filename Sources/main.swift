@@ -86,6 +86,56 @@ func daemonScriptOutdated() -> Bool {
     return !installed.isEmpty && !bundled.isEmpty && installed != bundled
 }
 
+// MARK: - Local service detection (v1.3)
+// Read-only: shows what the always-awake Mac is actually hosting. Process
+// name + port + PID only — NEVER command lines (they can carry secrets,
+// e.g. tunnel tokens). Servers running as root are not visible from a
+// user-session lsof; documented limitation.
+
+struct LocalService {
+    let name: String
+    let pid: Int
+    let ports: [Int]
+}
+
+/// System/browser processes that listen on ports but aren't "your servers".
+let serviceDenylist = [
+    "rapportd", "controlce", "sharingd", "identityservice", "airplay",
+    "ampdevice", "continuity", "assistantd", "corespeech", "remoted",
+    "google", "chrome", "safari", "firefox", "arc", "brave", "msedge",
+    "code", "electron", "dropbox", "onedrive", "adobe", "spotify",
+    "steam", "discord", "zoom", "teams", "slack",
+]
+
+func detectLocalServices() -> [LocalService] {
+    var byPid: [Int: (name: String, ports: Set<Int>)] = [:]
+    let out = shell("/usr/sbin/lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null")
+    for line in out.split(separator: "\n").dropFirst() {
+        let cols = line.split(separator: " ", omittingEmptySubsequences: true)
+        // COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME (LISTEN)
+        guard cols.count >= 10, let pid = Int(cols[1]) else { continue }
+        let name = String(cols[0]).replacingOccurrences(of: "\\x20", with: " ")
+        if serviceDenylist.contains(where: { name.lowercased().hasPrefix($0) }) { continue }
+        let addr = cols[cols.count - 2]
+        guard let portStr = addr.split(separator: ":").last, let port = Int(portStr) else { continue }
+        byPid[pid, default: (name, [])].ports.insert(port)
+    }
+    return byPid
+        .map { LocalService(name: $0.value.name, pid: $0.key, ports: $0.value.ports.sorted()) }
+        .sorted { ($0.ports.first ?? 0) < ($1.ports.first ?? 0) }
+}
+
+/// Tunnel clients dial out rather than listen — detect by process name.
+func detectTunnels() -> [(name: String, pid: Int)] {
+    var found: [(String, Int)] = []
+    for tool in ["cloudflared", "ngrok"] {
+        let out = shell("/usr/bin/pgrep -x \(tool) | /usr/bin/head -1")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let pid = Int(out) { found.append((tool, pid)) }
+    }
+    return found
+}
+
 // MARK: - Privileged execution
 
 enum AdminResult {
@@ -220,6 +270,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 #selector(setNormalSleep), checked: mode == nil && !awake)
 
         menu.addItem(.separator())
+        addServicesSection(menu)
+
+        menu.addItem(.separator())
         let login = NSMenuItem(title: "Start at Login",
                                action: #selector(toggleLoginItem), keyEquivalent: "")
         login.target = self
@@ -235,6 +288,71 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                               action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
+    }
+
+    // What the always-awake Mac is hosting — each service opens a submenu
+    // with its PID and per-port Open / Copy URL actions.
+    func addServicesSection(_ menu: NSMenu) {
+        let services = detectLocalServices()
+        let tunnels = detectTunnels()
+        if services.isEmpty && tunnels.isEmpty {
+            addInfo(menu, "No local servers detected")
+            return
+        }
+        addInfo(menu, "Serving right now:")
+
+        for s in services {
+            let portsLabel = s.ports.map { ":\($0)" }.joined(separator: "  ")
+            let item = NSMenuItem(title: "\(s.name)  \(portsLabel)", action: nil, keyEquivalent: "")
+            let sub = NSMenu()
+            let info = NSMenuItem(title: "PID \(s.pid)", action: nil, keyEquivalent: "")
+            info.isEnabled = false
+            sub.addItem(info)
+            sub.addItem(.separator())
+            for port in s.ports {
+                let url = "http://localhost:\(port)"
+                let open = NSMenuItem(title: "Open \(url)",
+                                      action: #selector(openServiceURL(_:)), keyEquivalent: "")
+                open.target = self
+                open.representedObject = url
+                sub.addItem(open)
+                let copy = NSMenuItem(title: "Copy \(url)",
+                                      action: #selector(copyServiceURL(_:)), keyEquivalent: "")
+                copy.target = self
+                copy.representedObject = url
+                sub.addItem(copy)
+            }
+            item.submenu = sub
+            menu.addItem(item)
+        }
+
+        for t in tunnels {
+            let item = NSMenuItem(title: "\(t.name)  — tunnel active", action: nil, keyEquivalent: "")
+            let sub = NSMenu()
+            let info = NSMenuItem(title: "PID \(t.pid)", action: nil, keyEquivalent: "")
+            info.isEnabled = false
+            sub.addItem(info)
+            let note = NSMenuItem(title: "Outbound tunnel — no local URL",
+                                  action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            sub.addItem(note)
+            item.submenu = sub
+            menu.addItem(item)
+        }
+    }
+
+    @objc func openServiceURL(_ sender: NSMenuItem) {
+        if let s = sender.representedObject as? String, let u = URL(string: s) {
+            NSWorkspace.shared.open(u)
+        }
+    }
+
+    @objc func copyServiceURL(_ sender: NSMenuItem) {
+        if let s = sender.representedObject as? String {
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            pb.setString(s, forType: .string)
+        }
     }
 
     func addInfo(_ menu: NSMenu, _ title: String) {
@@ -347,6 +465,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             on battery. Set-and-forget.
             💤 Normal Sleep — the macOS default.
 
+            The menu also lists the local servers and tunnels this Mac is \
+            hosting right now — click one to open or copy its localhost URL.
+
             Mode changes ask for your admin password because they use \
             macOS's own power-management switch (pmset disablesleep).
             """
@@ -354,6 +475,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func quitApp() { NSApp.terminate(nil) }
+}
+
+// Debug/verification hook: dump service detection to stdout and exit.
+// Used by humans and CI-adjacent smoke checks; not part of the app UI.
+if CommandLine.arguments.contains("--print-services") {
+    for s in detectLocalServices() {
+        print("\(s.name)\tpid=\(s.pid)\tports=\(s.ports.map(String.init).joined(separator: ","))")
+    }
+    for t in detectTunnels() {
+        print("\(t.name)\tpid=\(t.pid)\ttunnel")
+    }
+    exit(0)
 }
 
 let app = NSApplication.shared

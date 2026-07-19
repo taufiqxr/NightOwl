@@ -43,6 +43,28 @@ changes the setting.
 The menu always shows the live status, the power source, and — when on
 battery — the current charge percentage.
 
+## The Services menu
+
+The menu also lists what the always-awake Mac is actually hosting — the
+servers you're keeping it awake *for*. Every listening local service
+(a node dev server, a Flask app, anything with an open TCP port) appears
+with its ports; click one for a submenu with its PID and per-port
+**Open http://localhost:PORT** / **Copy URL** actions. Tunnel clients
+(`cloudflared`, `ngrok`) are detected by process, since tunnels dial out
+rather than listen.
+
+Design choices worth knowing:
+
+- Detection runs **only when you open the menu** (one `lsof` call) — zero
+  idle cost.
+- System and browser listeners (AirPlay, `rapportd`, Chrome casting, …)
+  are filtered out so the list is your servers, not OS noise.
+- Only **process name, port, and PID** are shown — never command lines.
+  Command lines can carry secrets (a `cloudflared` tunnel token, for
+  example), and a menu should never display one.
+- Servers running **as root** aren't visible (detection uses your user
+  session's `lsof`) — known limitation.
+
 Every mode change asks for your admin password via the standard macOS
 dialog — that's macOS protecting the power switch, not NightOwl phoning home.
 
