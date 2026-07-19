@@ -93,10 +93,15 @@ func daemonScriptOutdated() -> Bool {
 // e.g. tunnel tokens). Servers running as root are not visible from a
 // user-session lsof; documented limitation.
 
-struct LocalService {
+struct LocalService: Equatable {
     let name: String
     let pid: Int
     let ports: [Int]
+}
+
+struct Tunnel: Equatable {
+    let name: String
+    let pid: Int
 }
 
 /// System/browser processes that listen on ports but aren't "your servers".
@@ -127,12 +132,12 @@ func detectLocalServices() -> [LocalService] {
 }
 
 /// Tunnel clients dial out rather than listen — detect by process name.
-func detectTunnels() -> [(name: String, pid: Int)] {
-    var found: [(String, Int)] = []
+func detectTunnels() -> [Tunnel] {
+    var found: [Tunnel] = []
     for tool in ["cloudflared", "ngrok"] {
         let out = shell("/usr/bin/pgrep -x \(tool) | /usr/bin/head -1")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let pid = Int(out) { found.append((tool, pid)) }
+        if let pid = Int(out) { found.append(Tunnel(name: tool, pid: pid)) }
     }
     return found
 }
@@ -142,11 +147,18 @@ func detectTunnels() -> [(name: String, pid: Int)] {
 // controlling tty (background helpers like bg-pty-host run on ?? and are
 // skipped). cwd via lsof tells WHICH project each terminal is in.
 
-struct ClaudeSession {
+struct ClaudeSession: Equatable {
     let pid: Int
     let tty: String
     let etime: String
     let cwd: String
+
+    // etime ticks every second — comparing it would make every refresh
+    // look like a change and reintroduce the rebuild stutter. Identity is
+    // pid + tty + cwd.
+    static func == (l: ClaudeSession, r: ClaudeSession) -> Bool {
+        l.pid == r.pid && l.tty == r.tty && l.cwd == r.cwd
+    }
 }
 
 func detectClaudeSessions() -> [ClaudeSession] {
@@ -245,7 +257,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
     // mutation). Building synchronously from live lsof/ps caused a 1–2s
     // menu-open lag, reported by a real user.
     var cachedServices: [LocalService] = []
-    var cachedTunnels: [(name: String, pid: Int)] = []
+    var cachedTunnels: [Tunnel] = []
     var cachedSessions: [ClaudeSession] = []
     var menuIsOpen = false
     var refreshInFlight = false
@@ -384,7 +396,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
     }
 
     func applyWatchResults(_ liveServices: [LocalService],
-                           _ liveTunnelList: [(name: String, pid: Int)]) {
+                           _ liveTunnelList: [Tunnel]) {
         cachedServices = liveServices
         cachedTunnels = liveTunnelList
         let livePorts = Set(liveServices.flatMap { $0.ports })
@@ -497,9 +509,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         buildMenu(menu)   // instant, from caches
+        // Refresh in the background, but only REBUILD the open menu when
+        // the data actually changed — unconditional rebuilds made the
+        // menu visibly stutter on every open (live user report). Data is
+        // stable minute-to-minute, so the rebuild is the rare case.
+        let prevServices = cachedServices
+        let prevTunnels = cachedTunnels
+        let prevSessions = cachedSessions
         refreshDetectionCaches { [weak self] in
-            // repopulate in place if the user still has the menu open
-            if self?.menuIsOpen == true { self?.buildMenu(menu) }
+            guard let self, self.menuIsOpen else { return }
+            if self.cachedServices != prevServices
+                || self.cachedTunnels != prevTunnels
+                || self.cachedSessions != prevSessions {
+                self.buildMenu(menu)
+            }
         }
     }
 

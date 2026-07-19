@@ -8,6 +8,16 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.8.1] — 2026-07-19
+
+### Fixed
+- **Menu stutter on open** (reported live minutes after 1.8.0): the
+  background refresh rebuilt the open menu unconditionally when it
+  landed. The menu is now only rebuilt when the detected data actually
+  changed — and Claude sessions compare by pid/tty/cwd, deliberately
+  ignoring the running-time clock, which ticks every second and would
+  otherwise count as a "change" on every single open.
+
 ## [1.8.0] — 2026-07-19
 
 ### Added
@@ -159,6 +169,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.8.1]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.8.1
 [1.8.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.8.0
 [1.7.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.7.0
 [1.6.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.6.0
