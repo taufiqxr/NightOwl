@@ -461,16 +461,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         menu.addItem(quit)
     }
 
-    // What the always-awake Mac is hosting — each service opens a submenu
-    // with its PID and per-port Open / Copy URL actions.
+    // What the always-awake Mac is hosting — collapsed under ONE top-level
+    // "Servers" item (hover to expand) so the first click stays clean.
+    // The top-level title carries a ⚠️ badge when a watched item is down,
+    // so trouble is still visible without expanding.
     func addServicesSection(_ menu: NSMenu) {
         let services = detectLocalServices()
         let tunnels = detectTunnels()
-        if services.isEmpty && tunnels.isEmpty {
-            addInfo(menu, "No local servers detected")
+        let watchDown = lastPortUp.values.contains(false) || lastTunnelUp.values.contains(false)
+
+        let total = services.count + tunnels.count
+        if total == 0 && !watchDown {
+            addInfo(menu, "Servers — none detected")
             return
         }
-        addInfo(menu, "Serving right now:")
+        let top = NSMenuItem(
+            title: watchDown ? "Servers (\(total)) ⚠️" : "Servers (\(total))",
+            action: nil, keyEquivalent: "")
+        let serversMenu = NSMenu()
+        top.submenu = serversMenu
+        menu.addItem(top)
 
         for s in services {
             let portsLabel = s.ports.map { ":\($0)" }.joined(separator: "  ")
@@ -505,7 +515,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
                 sub.addItem(w)
             }
             item.submenu = sub
-            menu.addItem(item)
+            serversMenu.addItem(item)
         }
 
         for t in tunnels {
@@ -528,7 +538,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
             w.representedObject = t.name
             sub.addItem(w)
             item.submenu = sub
-            menu.addItem(item)
+            serversMenu.addItem(item)
         }
 
         // Watched things that are DOWN disappear from live detection —
@@ -549,7 +559,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
             w.representedObject = ["port": port, "label": label] as [String: Any]
             sub.addItem(w)
             item.submenu = sub
-            menu.addItem(item)
+            serversMenu.addItem(item)
         }
         let liveTunnels = Set(tunnels.map { $0.name })
         for t in watchedTunnels.subtracting(liveTunnels).sorted() {
@@ -561,7 +571,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
             w.representedObject = t
             sub.addItem(w)
             item.submenu = sub
-            menu.addItem(item)
+            serversMenu.addItem(item)
         }
     }
 

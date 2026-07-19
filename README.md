@@ -55,12 +55,14 @@ last did — so it stays honest even if something else changes the setting.
 The menu always shows the live status, the power source, and — when on
 battery — the current charge percentage.
 
-## The Services menu
+## The Servers menu
 
-The menu also lists what the always-awake Mac is actually hosting — the
-servers you're keeping it awake *for*. Every listening local service
-(a node dev server, a Flask app, anything with an open TCP port) appears
-with its ports; click one for a submenu with its PID and per-port
+A single **Servers (N)** item lists what the always-awake Mac is actually
+hosting — the servers you're keeping it awake *for* — expanding on hover
+so the main menu stays clean (the item shows a ⚠️ badge when something
+watched is down). Every listening local service (a node dev server, a
+Flask app, anything with an open TCP port) appears with its ports; hover
+one for a submenu with its PID and per-port
 **Open http://localhost:PORT** / **Copy URL** actions. Tunnel clients
 (`cloudflared`, `ngrok`) are detected by process, since tunnels dial out
 rather than listen.

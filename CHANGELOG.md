@@ -8,6 +8,16 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.6.0] — 2026-07-19
+
+### Changed
+- **Services collapsed into one "Servers (N)" item** — hover to expand.
+  The first click on the owl now shows a clean menu: status, modes,
+  Servers, settings. The top-level "Servers" title carries a ⚠️ badge
+  whenever a watched service or tunnel is down, so trouble is still
+  visible without expanding; everything inside (per-service submenus,
+  Open/Copy URL, watch toggles, DOWN entries) is unchanged.
+
 ## [1.5.0] — 2026-07-19
 
 ### Added
@@ -114,6 +124,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.6.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.6.0
 [1.5.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.5.0
 [1.4.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.4.0
 [1.3.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.3.0
