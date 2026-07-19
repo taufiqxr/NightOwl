@@ -35,9 +35,15 @@ Two pieces:
   ServiceManagement). Shows live state (🦉 = `SleepDisabled 1`, 💤 = 0),
   polled every 10s + on wake — it reports the *actual* pmset state, never
   an assumption. Three modes; every mode switch runs ONE admin command
-  via osascript `with administrator privileges` (async subprocess, never
-  NSAppleScript on a thread), and always removes the daemon before
-  applying the new mode so the daemon can't fight it.
+  via NSAppleScript `with administrator privileges` IN-PROCESS on the
+  main thread (v1.11.1: an osascript subprocess made the password dialog
+  say "osascript wants to make changes" — alarming to users; in-process
+  attributes it to NightOwl. NSAppleScript is main-thread-only per
+  Apple; the runloop blocking while the dialog is up is the accepted
+  cost), and always removes the daemon before applying the new mode so
+  the daemon can't fight it. `shell()` must read pipe output BEFORE
+  `waitUntilExit` — waiting first deadlocks at >64KB of output (bit for
+  real when `ps axo` crossed the pipe buffer size).
 - **`Resources/nightowl-auto.sh`** — the root LaunchDaemon
   (`com.nightowl.auto`, installed to `/usr/local/bin/nightowl-auto.sh` +
   `/Library/LaunchDaemons/com.nightowl.auto.plist`), used by BOTH

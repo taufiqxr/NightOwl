@@ -39,8 +39,13 @@ func shell(_ cmd: String) -> String {
     p.standardOutput = out
     p.standardError = Pipe()
     do { try p.run() } catch { return "" }
+    // Read BEFORE waitUntilExit: waiting first deadlocks the moment a
+    // command's output exceeds the 64KB pipe buffer (the child blocks
+    // writing, we block waiting). Bit for real when `ps axo` crossed
+    // 64KB and froze all detection — Claude section vanished.
+    let data = out.fileHandleForReading.readDataToEndOfFile()
     p.waitUntilExit()
-    return String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+    return String(data: data, encoding: .utf8) ?? ""
 }
 
 func sleepDisabledNow() -> Bool {
@@ -219,35 +224,31 @@ enum AdminResult {
 }
 
 /// Runs a shell command as root via the standard macOS admin-password
-/// dialog. Uses an osascript subprocess so the app's UI never blocks.
+/// dialog.
+///
+/// Executed IN-PROCESS with NSAppleScript so the dialog says
+/// "NightOwl wants to make changes" (an osascript subprocess made it say
+/// "osascript wants to make changes" — technically identical, but scary
+/// to anyone who doesn't know what osascript is; live user question).
+/// NSAppleScript is main-thread-only per Apple, so the runloop blocks
+/// while the password dialog is up — acceptable: the action is always
+/// user-initiated and the dialog has their full attention.
 func runAdmin(_ cmd: String, completion: @escaping (AdminResult) -> Void) {
     let escaped = cmd
         .replacingOccurrences(of: "\\", with: "\\\\")
         .replacingOccurrences(of: "\"", with: "\\\"")
     let src = "do shell script \"\(escaped)\" with administrator privileges"
 
-    let p = Process()
-    p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-    p.arguments = ["-e", src]
-    let errPipe = Pipe()
-    p.standardError = errPipe
-    p.standardOutput = Pipe()
-    p.terminationHandler = { proc in
-        let errText = String(
-            data: errPipe.fileHandleForReading.readDataToEndOfFile(),
-            encoding: .utf8) ?? ""
-        DispatchQueue.main.async {
-            if proc.terminationStatus == 0 {
-                completion(.success)
-            } else if errText.contains("-128") || errText.lowercased().contains("cancel") {
-                completion(.cancelled)
-            } else {
-                completion(.failed(errText.trimmingCharacters(in: .whitespacesAndNewlines)))
-            }
+    DispatchQueue.main.async {   // let the menu close first
+        var err: NSDictionary?
+        NSAppleScript(source: src)?.executeAndReturnError(&err)
+        guard let err else {
+            completion(.success)
+            return
         }
-    }
-    do { try p.run() } catch {
-        DispatchQueue.main.async { completion(.failed(error.localizedDescription)) }
+        let num = (err["NSAppleScriptErrorNumber"] as? Int) ?? 0
+        let msg = (err["NSAppleScriptErrorMessage"] as? String) ?? "AppleScript error \(num)"
+        completion(num == -128 ? .cancelled : .failed(msg))
     }
 }
 
@@ -332,7 +333,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         offerLoginItemOnFirstRun()
     }
 
+    var refreshCompletions: [() -> Void] = []
+
     func refreshDetectionCaches(then: (() -> Void)? = nil) {
+        // Queue completions instead of dropping them: the old early
+        // return threw away the callback when a refresh was already in
+        // flight — an open menu waiting on it never updated (second bug
+        // found while chasing the pipe deadlock).
+        if let then { refreshCompletions.append(then) }
         if refreshInFlight { return }
         refreshInFlight = true
         DispatchQueue.global().async { [weak self] in
@@ -345,7 +353,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
                 self.cachedTunnels = tunnels
                 self.cachedSessions = sessions
                 self.refreshInFlight = false
-                then?()
+                let pending = self.refreshCompletions
+                self.refreshCompletions = []
+                pending.forEach { $0() }
             }
         }
     }

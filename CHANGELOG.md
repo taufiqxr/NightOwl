@@ -8,6 +8,25 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.11.1] — 2026-07-19
+
+### Fixed
+- **Detection froze (Claude section vanished) when `ps` output crossed
+  64KB.** `shell()` waited for the child to exit before reading its
+  output — a classic pipe-buffer deadlock, latent since 1.0.0, triggered
+  the day the machine's process list grew big enough. Output is now read
+  before waiting. Found live: the user's Claude submenu disappeared and
+  `--print-claude-sessions` hung, and this machine's `ps` output
+  measured 66,655 bytes against a 65,536-byte buffer.
+- A refresh already in flight silently dropped the open menu's update
+  callback — completions are now queued and all run when the refresh
+  lands.
+- **The admin dialog now says "NightOwl wants to make changes"** instead
+  of "osascript wants to make changes" — the privileged command runs
+  in-process via NSAppleScript rather than an osascript subprocess.
+  Functionally identical, far less alarming (a real user asked "what is
+  osascript" mid-password-prompt).
+
 ## [1.11.0] — 2026-07-19
 
 ### Changed
@@ -202,6 +221,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.11.1]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.11.1
 [1.11.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.11.0
 [1.10.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.10.0
 [1.9.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.9.0
