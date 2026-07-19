@@ -1,0 +1,18 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build app
+        run: ./build.sh
+
+      - name: Daemon logic tests
+        run: bash tests/test-daemon-logic.sh

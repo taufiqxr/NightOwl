@@ -1,5 +1,7 @@
 # NightOwl 🦉
 
+[![CI](https://github.com/taufiqxr/NightOwl/actions/workflows/ci.yml/badge.svg)](https://github.com/taufiqxr/NightOwl/actions/workflows/ci.yml)
+
 A tiny macOS menu bar app that keeps your Mac awake — **even with the lid
 closed**.
 
@@ -92,6 +94,20 @@ complete list of what NightOwl does with admin rights:
 - **Normal Sleep** removes the daemon and runs `pmset -a disablesleep 0`.
 - Switching modes always removes the daemon first, so it can never fight
   the new choice.
+- When the daemon restores sleep permission while the lid is already
+  closed (guard trip in a bag, or unplugging a closed Smart Auto Mac),
+  it puts the Mac to sleep immediately (`pmset sleepnow`) instead of
+  waiting for macOS to get around to it.
+- The daemon logs every state change to the system log — view it with
+  Console.app or:
+  ```bash
+  log show --predicate 'eventMessage CONTAINS "NightOwl"' --last 1h
+  ```
+- The menu self-checks the daemon: if the process has died, or an app
+  update shipped a newer daemon script than the one installed, the menu
+  shows a one-click repair/update item. The daemon's decision logic is
+  covered by [mock-based tests](tests/test-daemon-logic.sh) run in CI on
+  every push.
 
 Nothing else. No network access, no analytics, no background helpers beyond
 the one daemon Smart Auto installs (and removes when you leave that mode).

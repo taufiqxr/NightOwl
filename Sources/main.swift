@@ -20,7 +20,7 @@ import ServiceManagement
 //
 // Every mode change runs through the standard macOS admin-password dialog.
 
-let appVersion = "1.1.0"
+let appVersion = "1.2.0"
 let daemonLabel = "com.nightowl.auto"
 let daemonPlistPath = "/Library/LaunchDaemons/com.nightowl.auto.plist"
 let daemonScriptPath = "/usr/local/bin/nightowl-auto.sh"
@@ -64,6 +64,24 @@ func installedDaemonMode() -> String? {
     guard let s = try? String(contentsOfFile: daemonPlistPath, encoding: .utf8) else { return nil }
     if s.contains("<string>always</string>") { return "always" }
     return "auto"
+}
+
+/// The plist can exist while the daemon itself is dead (failed bootstrap,
+/// crash). pgrep sees root processes from a user session, no privileges
+/// needed — so the menu can tell the truth instead of trusting the file.
+func daemonProcessRunning() -> Bool {
+    !shell("/usr/bin/pgrep -f 'nightowl-auto.sh'").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+}
+
+/// True when the installed daemon script differs from the copy bundled in
+/// this app version — i.e. an app upgrade shipped a newer daemon and the
+/// user hasn't re-selected a mode yet.
+func daemonScriptOutdated() -> Bool {
+    guard let res = Bundle.main.resourcePath,
+          FileManager.default.fileExists(atPath: daemonScriptPath) else { return false }
+    let installed = shell("/sbin/md5 -q '\(daemonScriptPath)'")
+    let bundled = shell("/sbin/md5 -q '\(res)/nightowl-auto.sh'")
+    return !installed.isEmpty && !bundled.isEmpty && installed != bundled
 }
 
 // MARK: - Privileged execution
@@ -114,6 +132,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var timer: Timer?
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        // Single instance: a second copy would just add a second owl.
+        let mine = Bundle.main.bundleIdentifier ?? "com.nightowl.app"
+        if NSRunningApplication.runningApplications(withBundleIdentifier: mine)
+            .filter({ $0.processIdentifier != ProcessInfo.processInfo.processIdentifier })
+            .count > 0 {
+            NSApp.terminate(nil)
+            return
+        }
+
         NSApp.setActivationPolicy(.accessory)
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -164,6 +191,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         addInfo(menu, powerLine)
         if mode == "always" && !awake && !ac {
             addInfo(menu, "Low-battery guard active — re-arms when charging")
+        }
+
+        // Daemon self-checks: the file can exist while the process is dead,
+        // and an app upgrade can leave an older script installed. Both are
+        // one click to fix (reinstalls the daemon in the same mode).
+        if mode != nil && !daemonProcessRunning() {
+            let repair = NSMenuItem(title: "⚠️ Daemon not running — click to repair",
+                                    action: #selector(repairDaemon), keyEquivalent: "")
+            repair.target = self
+            menu.addItem(repair)
+        } else if mode != nil && daemonScriptOutdated() {
+            let update = NSMenuItem(title: "⬆️ Daemon update available — click to install",
+                                    action: #selector(repairDaemon), keyEquivalent: "")
+            update.target = self
+            menu.addItem(update)
         }
         menu.addItem(.separator())
 
@@ -246,6 +288,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func setNormalSleep() {
         applyChange("\(removeDaemonCmd); /usr/bin/pmset -a disablesleep 0")
+    }
+
+    /// Reinstalls the daemon in whatever mode is currently configured —
+    /// used by the "not running" and "update available" menu items.
+    @objc func repairDaemon() {
+        guard let mode = installedDaemonMode() else { return }
+        applyChange(installDaemonCmd(mode: mode))
     }
 
     func applyChange(_ cmd: String) {
