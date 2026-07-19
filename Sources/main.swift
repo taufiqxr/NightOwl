@@ -316,6 +316,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         }
         lastPortUp = lastPortUp.filter { watchedPorts.contains($0.key) }
         lastTunnelUp = lastTunnelUp.filter { watchedTunnels.contains($0.key) }
+        refreshIcon()   // reflect watch state in the menu bar immediately
     }
 
     @objc func toggleWatchPort(_ sender: NSMenuItem) {
@@ -355,10 +356,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
 
     func refreshIcon() {
         let awake = sleepDisabledNow()
-        statusItem.button?.title = awake ? "🦉" : "💤"
-        statusItem.button?.toolTip = awake
+        let mode = installedDaemonMode()
+        let ac = onACPower()
+
+        // Trouble = anything the user should glance-check: a watched
+        // service/tunnel currently down, or the daemon dead behind an
+        // installed plist. Uses the 60s checker's cached state — no extra
+        // work on the 10s tick beyond one pgrep when a daemon is expected.
+        let watchDown = lastPortUp.values.contains(false) || lastTunnelUp.values.contains(false)
+        let daemonDead = mode != nil && !daemonProcessRunning()
+        let trouble = watchDown || daemonDead
+
+        let guardTripped = mode == "always" && !awake && !ac
+        let base = guardTripped ? "🪫" : (awake ? "🦉" : "💤")
+        statusItem.button?.title = trouble ? base + "⚠️" : base
+
+        var tip = awake
             ? "NightOwl — your Mac will NOT sleep (even lid closed)"
             : "NightOwl — your Mac sleeps normally (lid close = sleep)"
+        if guardTripped { tip = "NightOwl — low-battery guard tripped; re-arms when charging" }
+        if watchDown { tip += " · a watched service is DOWN" }
+        if daemonDead { tip += " · daemon not running (open menu to repair)" }
+        statusItem.button?.toolTip = tip
 
         // Sleep-state transitions the user didn't just cause themselves:
         // the guard acting (mode always), or an outside change (mode nil).

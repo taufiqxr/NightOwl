@@ -8,6 +8,16 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.5.0] — 2026-07-19
+
+### Added
+- **State-aware menu bar icon.** The icon now expresses every state the
+  app knows, not just awake/asleep: 🦉 all well · 🦉⚠️ awake but a watched
+  service is down or the daemon died · 🪫 low-battery guard tripped ·
+  💤 normal sleep · 💤⚠️ sleep allowed and a watch is down. Tooltip
+  explains the exact condition; watch transitions update the icon
+  immediately, not on the next 10-second tick.
+
 ## [1.4.0] — 2026-07-19
 
 ### Added
@@ -104,6 +114,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.5.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.5.0
 [1.4.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.4.0
 [1.3.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.3.0
 [1.2.1]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.2.1

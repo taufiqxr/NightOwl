@@ -25,12 +25,19 @@ it in a menu bar app with three explicit modes and an always-visible status.
 
 ## What you see
 
-- **🦉 in the menu bar** — your Mac will *not* sleep, lid closed or not.
-- **💤 in the menu bar** — your Mac sleeps normally; closing the lid sleeps it.
+The menu bar icon expresses the full state at a glance:
 
-The icon reflects the *actual* system state (checked every 10 seconds), not
-just what NightOwl last did — so it stays honest even if something else
-changes the setting.
+| Icon | Meaning |
+|---|---|
+| 🦉 | Your Mac will *not* sleep, lid closed or not — all well |
+| 🦉⚠️ | Awake, but a watched service is down or the daemon isn't running |
+| 🪫 | The low-battery guard has tripped — sleep allowed until charging |
+| 💤 | Normal sleep mode; closing the lid sleeps the Mac |
+| 💤⚠️ | Sleep allowed *and* a watched service is down |
+
+Hover for a tooltip naming the exact condition. The icon reflects the
+*actual* system state (checked every 10 seconds), not just what NightOwl
+last did — so it stays honest even if something else changes the setting.
 
 ## Modes
 
