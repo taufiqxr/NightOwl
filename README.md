@@ -44,7 +44,7 @@ dialog — that's macOS protecting the power switch, not NightOwl phoning home.
 Requires the Xcode Command Line Tools (`xcode-select --install`), macOS 13+.
 
 ```bash
-git clone <this repo>
+git clone https://github.com/taufiqxr/NightOwl.git
 cd NightOwl
 ./build.sh --install
 ```
@@ -52,8 +52,10 @@ cd NightOwl
 That compiles, installs to `/Applications`, and launches it. NightOwl adds
 itself to your Login Items on first run (toggle it off in the menu anytime).
 
-### Option B — a zip someone shared with you
+### Option B — download the app directly
 
+Grab `NightOwl-<version>.zip` from the
+[Releases page](https://github.com/taufiqxr/NightOwl/releases).
 Unzip, drag `NightOwl.app` to `/Applications`, then **right-click → Open**
 the first time (it's not notarized with a paid Apple developer account, so
 Gatekeeper needs the explicit right-click → Open once). If macOS still
