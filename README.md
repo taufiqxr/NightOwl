@@ -3,6 +3,10 @@
 A tiny macOS menu bar app that keeps your Mac awake — **even with the lid
 closed**.
 
+Perfect for running bots, agents, home servers, long downloads, or anything
+else that needs a Mac awake 24/7 — **turn a MacBook you already own into an
+always-on machine, no Mac mini required.**
+
 ## Why NightOwl exists
 
 If you run anything on a MacBook that needs to stay alive (a home server, a
@@ -86,6 +90,38 @@ Nothing else. No network access, no analytics, no background helpers beyond
 the one daemon Smart Auto installs (and removes when you leave that mode).
 
 `disablesleep` persists across reboots; whatever mode you pick stays picked.
+
+## FAQ
+
+**My screen still turns off and locks when I close the lid — is it even
+working?**
+Yes — that's the design. The *display* sleeps and locks; the *machine* keeps
+running. Check the menu bar icon (🦉 = awake) or run
+`pmset -g | grep SleepDisabled` — `1` means every server, download, and
+script is still going with the lid shut.
+
+**Will Always Awake drain my battery?**
+Yes — that's exactly what it promises. Unplugged, the Mac stays fully on
+until the battery runs out, and in a closed bag it will also run warm.
+That's why 🔌 **Smart Auto** exists: awake on the charger, normal sleep on
+battery. If you carry your Mac around, use Smart Auto.
+
+**How do I verify what state my Mac is in right now?**
+```bash
+pmset -g | grep SleepDisabled   # 1 = won't sleep, 0 = sleeps normally
+```
+The menu bar icon shows the same thing live (🦉 / 💤), and it reflects the
+actual system state — not just what NightOwl last did.
+
+**Why does it need my admin password?**
+`pmset disablesleep` is a root-level power switch — macOS itself requires
+admin rights for it. NightOwl asks through the standard macOS dialog and the
+[How it works](#how-it-works-and-what-runs-as-root) section lists every
+command it runs with those rights.
+
+**Does the Mac wake up fine afterward?**
+Nothing about wake changes — open the lid or press a key as usual. NightOwl
+only controls whether the Mac is *allowed* to sleep.
 
 ## Uninstall
 
