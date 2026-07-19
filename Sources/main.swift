@@ -152,13 +152,27 @@ struct ClaudeSession: Equatable {
     let tty: String
     let etime: String
     let cwd: String
+    let name: String?     // the session's given name (from /rename or auto)
+    let busy: Bool
 
-    // etime ticks every second — comparing it would make every refresh
-    // look like a change and reintroduce the rebuild stutter. Identity is
-    // pid + tty + cwd.
+    // etime ticks every second and busy flips on every turn — comparing
+    // either would make refreshes look like changes and reintroduce the
+    // rebuild stutter. Identity is pid + tty + cwd + name.
     static func == (l: ClaudeSession, r: ClaudeSession) -> Bool {
-        l.pid == r.pid && l.tty == r.tty && l.cwd == r.cwd
+        l.pid == r.pid && l.tty == r.tty && l.cwd == r.cwd && l.name == r.name
     }
+}
+
+// Claude Code writes ~/.claude/sessions/<pid>.json with the session's
+// name ("nightowl"), status ("busy"/"idle"), cwd, and ids — a direct
+// pid→name mapping. Stale files for dead pids exist but are never read
+// (we only look up pids found live via ps).
+func claudeSessionMeta(pid: Int) -> (name: String?, busy: Bool) {
+    let path = "\(NSHomeDirectory())/.claude/sessions/\(pid).json"
+    guard let data = FileManager.default.contents(atPath: path),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return (nil, false) }
+    return (obj["name"] as? String, (obj["status"] as? String) == "busy")
 }
 
 func detectClaudeSessions() -> [ClaudeSession] {
@@ -187,8 +201,12 @@ func detectClaudeSessions() -> [ClaudeSession] {
         }
     }
     return found
-        .map { ClaudeSession(pid: $0.pid, tty: $0.tty, etime: $0.etime,
-                             cwd: cwdByPid[$0.pid] ?? "?") }
+        .map { proc -> ClaudeSession in
+            let meta = claudeSessionMeta(pid: proc.pid)
+            return ClaudeSession(pid: proc.pid, tty: proc.tty, etime: proc.etime,
+                                 cwd: cwdByPid[proc.pid] ?? "?",
+                                 name: meta.name, busy: meta.busy)
+        }
         .sorted { $0.tty < $1.tty }
 }
 
@@ -717,14 +735,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
             let folder = s.cwd == "?" ? "unknown folder"
                 : URL(fileURLWithPath: s.cwd).lastPathComponent
             let ttyShort = s.tty.replacingOccurrences(of: "ttys", with: "tty ")
-            let item = NSMenuItem(title: "\(folder)  (\(ttyShort))",
+            // Session NAME leads (it's what tells twins in the same folder
+            // apart); folder gives context; ⚡ = currently busy.
+            let title = s.name.map { "\($0)  (\(folder))" } ?? "\(folder)  (\(ttyShort))"
+            let item = NSMenuItem(title: s.busy ? "⚡ \(title)" : title,
                                   action: nil, keyEquivalent: "")
             let sub = NSMenu()
             let pathInfo = NSMenuItem(title: s.cwd, action: nil, keyEquivalent: "")
             pathInfo.isEnabled = false
             sub.addItem(pathInfo)
-            let procInfo = NSMenuItem(title: "PID \(s.pid) · running \(s.etime)",
-                                      action: nil, keyEquivalent: "")
+            let procInfo = NSMenuItem(
+                title: "PID \(s.pid) · \(ttyShort) · running \(s.etime) · \(s.busy ? "busy" : "idle")",
+                action: nil, keyEquivalent: "")
             procInfo.isEnabled = false
             sub.addItem(procInfo)
             sub.addItem(.separator())
@@ -983,7 +1005,7 @@ if CommandLine.arguments.contains("--print-services") {
 }
 if CommandLine.arguments.contains("--print-claude-sessions") {
     for s in detectClaudeSessions() {
-        print("\(s.tty)\tpid=\(s.pid)\t\(s.etime)\t\(s.cwd)")
+        print("\(s.tty)\tpid=\(s.pid)\t\(s.name ?? "-")\t\(s.busy ? "busy" : "idle")\t\(s.etime)\t\(s.cwd)")
     }
     exit(0)
 }

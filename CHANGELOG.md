@@ -8,6 +8,18 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [1.9.0] — 2026-07-19
+
+### Added
+- **Claude sessions show their given names**: each session in the Claude
+  submenu is now labeled by its Claude Code session name (the one set
+  with `/rename`, or the auto-generated one) with the project folder in
+  parentheses — so multiple terminals in the same folder are finally
+  distinguishable. A ⚡ prefix marks sessions that are actively working
+  right now; the submenu detail line adds tty and busy/idle. Source:
+  Claude Code's own `~/.claude/sessions/<pid>.json` files — a direct
+  pid→name mapping, read locally, nothing leaves the machine.
+
 ## [1.8.1] — 2026-07-19
 
 ### Fixed
@@ -169,6 +181,7 @@ Initial release.
 - Start at Login via SMAppService, About dialog, ad-hoc signed build via
   plain `swiftc` (no Xcode project).
 
+[1.9.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.9.0
 [1.8.1]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.8.1
 [1.8.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.8.0
 [1.7.0]: https://github.com/taufiqxr/NightOwl/releases/tag/v1.7.0

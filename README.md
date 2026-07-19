@@ -82,13 +82,15 @@ Design choices worth knowing:
 ### Claude
 
 If you use [Claude Code](https://claude.com/claude-code), a **Claude (N)**
-item lists every open session, labeled by the project folder it's working
-in — hover one for the full path, PID, running time, and **Jump to this
-terminal** (brings that Terminal.app/iTerm2 tab to the front — first use
-asks for macOS's automation permission), plus **Reveal in Finder** /
-**Copy path**. Handy when you have half a dozen identical-looking
-terminals open. The section disappears entirely when no sessions are
-running.
+item lists every open session by its **session name** (the one you set
+with `/rename`, or the auto-generated one) with its project folder — so
+even several terminals in the same folder are distinguishable — and a ⚡
+marks sessions actively working right now. Hover one for the full path,
+PID, tty, busy/idle, running time, and **Jump to this terminal** (brings
+that Terminal.app/iTerm2 tab to the front — first use asks for macOS's
+automation permission), plus **Reveal in Finder** / **Copy path**. Names
+come from Claude Code's own local session files; nothing leaves the
+machine. The section disappears entirely when no sessions are running.
 
 ### Watching services
 
