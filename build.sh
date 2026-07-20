@@ -40,6 +40,12 @@ cp Resources/AppIcon.icns \
    Resources/nightowl-auto.sh \
    Resources/com.nightowl.auto.plist \
    "$APP/Contents/Resources/"
+# Strip extended attributes: building inside an iCloud Drive (or Dropbox)
+# folder stamps files with file-provider xattrs (com.apple.fileprovider.*)
+# that survive cp/ditto into /Applications AND into release zips — and
+# Spotlight silently refuses to index bundles carrying them (found live:
+# the installed app was invisible to Spotlight/Launchpad).
+xattr -cr "$APP"
 codesign --force --sign - "$APP" 2>/dev/null
 
 echo "Built $APP (v$VERSION)"
