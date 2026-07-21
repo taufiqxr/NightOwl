@@ -135,20 +135,27 @@ cd NightOwl
 That compiles, installs to `/Applications`, and launches it. NightOwl adds
 itself to your Login Items on first run (toggle it off in the menu anytime).
 
-### Option B — download the app directly
+### Option B — the installer (easiest, no developer tools)
 
-Grab `NightOwl-<version>.zip` from the
-[Releases page](https://github.com/taufiqxr/NightOwl/releases).
-Unzip, drag `NightOwl.app` to `/Applications`, then **right-click → Open**
-the first time (it's not notarized with a paid Apple developer account, so
-Gatekeeper needs the explicit right-click → Open once). If macOS still
-refuses, clear the download quarantine flag:
+Download `NightOwl-<version>.pkg` from the
+[Releases page](https://github.com/taufiqxr/NightOwl/releases),
+**right-click it → Open** (once — the project isn't notarized with a paid
+Apple developer account), and click through the standard install wizard.
+The app lands in /Applications and the owl appears in your menu bar
+automatically. Files placed by the macOS installer carry no quarantine
+flag, so the app itself launches cleanly from then on.
+
+### Option C — the zip
+
+Grab `NightOwl-<version>.zip` from the same Releases page. Unzip, drag
+`NightOwl.app` to `/Applications`, then **right-click → Open** the first
+time. If macOS still refuses, clear the download quarantine flag:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/NightOwl.app
 ```
 
-To create that zip from source: `./build.sh --release` → `dist/NightOwl-<version>.zip`.
+To create both from source: `./build.sh --release` → `dist/`.
 
 ## How it works (and what runs as root)
 

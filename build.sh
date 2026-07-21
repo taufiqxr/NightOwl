@@ -63,4 +63,21 @@ elif [ "${1:-}" = "--release" ]; then
   rm -f "$ZIP"
   ditto -c -k --keepParent "$APP" "$ZIP"
   echo "Shareable archive: $ZIP"
+
+  # Installer package for non-developers: double-click → wizard →
+  # /Applications, then postinstall launches the app as the console
+  # user. Installer-placed files carry no quarantine flag, so the app
+  # itself never needs the right-click → Open dance — only the pkg does.
+  PKG="dist/NightOwl-${VERSION}.pkg"
+  PKGSCRIPTS=$(mktemp -d)
+  cp scripts/pkg-postinstall "$PKGSCRIPTS/postinstall"
+  chmod 755 "$PKGSCRIPTS/postinstall"
+  pkgbuild --component "$APP" \
+           --install-location /Applications \
+           --identifier com.nightowl.app.pkg \
+           --version "$VERSION" \
+           --scripts "$PKGSCRIPTS" \
+           "$PKG" >/dev/null
+  rm -rf "$PKGSCRIPTS"
+  echo "Installer package: $PKG"
 fi

@@ -45,7 +45,7 @@ bash tests/test-daemon-logic.sh
 ./build.sh --release
 mkdir -p dist
 printf '%s\n' "$NOTES" > "dist/RELEASE_NOTES-$VERSION.md"
-gh release create "$TAG" "dist/NightOwl-$VERSION.zip" \
+gh release create "$TAG" "dist/NightOwl-$VERSION.zip" "dist/NightOwl-$VERSION.pkg" \
   --title "NightOwl $VERSION" \
   --notes-file "dist/RELEASE_NOTES-$VERSION.md"
 

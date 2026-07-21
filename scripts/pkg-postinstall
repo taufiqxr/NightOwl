@@ -1,0 +1,9 @@
+#!/bin/bash
+# PKG postinstall: launch NightOwl as the logged-in user (the installer
+# runs as root; launching GUI apps as root is wrong), so the owl appears
+# in the menu bar the moment the wizard finishes.
+CONSOLE_USER=$(/usr/bin/stat -f%Su /dev/console)
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+  /usr/bin/sudo -u "$CONSOLE_USER" /usr/bin/open -a "/Applications/NightOwl.app" || true
+fi
+exit 0
