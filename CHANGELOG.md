@@ -8,6 +8,24 @@ Releases are cut with `scripts/release.sh`, which publishes the matching
 section of this file as the GitHub release notes — so this file is the
 single source of truth for what shipped.
 
+## [Unreleased]
+
+### Added
+- **`.pkg` installer for non-developers** (also attached retroactively to
+  the v1.11.1 release, install-verified on a real Mac): double-click →
+  standard macOS wizard → app in /Applications, auto-launched by a
+  postinstall running as the console user. Installer-placed files carry
+  no quarantine flag, so only the pkg needs the one right-click → Open —
+  the app itself launches clean. Built by `build.sh --release`; the
+  release script attaches both zip and pkg.
+
+### Fixed
+- Builds inside iCloud Drive/Dropbox folders stamped
+  `com.apple.fileprovider.*` xattrs onto the bundle — carried into
+  /Applications and release zips, and Spotlight can silently skip bundles
+  carrying them. `build.sh` now strips all xattrs before signing; the
+  v1.11.1 zip was re-uploaded clean.
+
 ## [1.11.1] — 2026-07-19
 
 ### Fixed
