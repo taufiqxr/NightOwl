@@ -49,5 +49,26 @@ gh release create "$TAG" "dist/NightOwl-$VERSION.zip" "dist/NightOwl-$VERSION.pk
   --title "NightOwl $VERSION" \
   --notes-file "dist/RELEASE_NOTES-$VERSION.md"
 
+# Point the Homebrew tap (taufiqxr/homebrew-tap) at the new release. The
+# release is already published at this point, so a tap failure warns
+# instead of aborting — re-run the block by hand if it does.
+if SHA256=$(shasum -a 256 "dist/NightOwl-$VERSION.zip" | awk '{print $1}'); then
+  TAP_DIR=$(mktemp -d)
+  if git clone --quiet --depth 1 git@github.com:taufiqxr/homebrew-tap.git "$TAP_DIR" 2>/dev/null \
+     || git clone --quiet --depth 1 https://github.com/taufiqxr/homebrew-tap.git "$TAP_DIR"; then
+    sed -i '' \
+      -e "s|^  version \".*\"|  version \"$VERSION\"|" \
+      -e "s|^  sha256 \".*\"|  sha256 \"$SHA256\"|" \
+      "$TAP_DIR/Casks/nightowl.rb"
+    git -C "$TAP_DIR" commit --quiet -am "nightowl $VERSION" \
+      && git -C "$TAP_DIR" push --quiet \
+      && echo "Tap updated — brew serves $VERSION" \
+      || echo "WARNING: tap commit/push failed — update homebrew-tap/Casks/nightowl.rb manually (version $VERSION, sha256 $SHA256)"
+    rm -rf "$TAP_DIR"
+  else
+    echo "WARNING: could not clone homebrew-tap — update Casks/nightowl.rb manually (version $VERSION, sha256 $SHA256)"
+  fi
+fi
+
 echo ""
 echo "Released $TAG — https://github.com/taufiqxr/NightOwl/releases/tag/$TAG"

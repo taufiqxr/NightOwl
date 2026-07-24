@@ -22,7 +22,7 @@ always-on machine, no Mac mini required.**
 <img src="docs/menu.png" alt="NightOwl menu: sleep status, three modes with the low-battery guard, live Servers list, and the Claude session switcher expanded" width="680">
 
 
-## Why NightOwl exists
+## Why closing the lid kills your server (and why caffeinate can't stop it)
 
 If you run anything on a MacBook that needs to stay alive (a home server, a
 bot, a long download, a build), closing the lid kills it: macOS **force-sleeps**
@@ -122,7 +122,21 @@ dialog — that's macOS protecting the power switch, not NightOwl phoning home.
 
 ## Install
 
-### Option A — build from source (recommended)
+### Option A — Homebrew
+
+```bash
+brew install --cask taufiqxr/tap/nightowl
+```
+
+Because the app is ad-hoc signed (not notarized — no paid Apple developer
+account), macOS may block the first launch: **right-click → Open** once,
+or install with `--no-quarantine` to skip the dance entirely:
+
+```bash
+brew install --cask --no-quarantine taufiqxr/tap/nightowl
+```
+
+### Option B — build from source
 
 Requires the Xcode Command Line Tools (`xcode-select --install`), macOS 13+.
 
@@ -135,7 +149,7 @@ cd NightOwl
 That compiles, installs to `/Applications`, and launches it. NightOwl adds
 itself to your Login Items on first run (toggle it off in the menu anytime).
 
-### Option B — the installer (easiest, no developer tools)
+### Option C — the installer (no developer tools, no Homebrew)
 
 Download `NightOwl-<version>.pkg` from the
 [Releases page](https://github.com/taufiqxr/NightOwl/releases),
@@ -145,7 +159,7 @@ The app lands in /Applications and the owl appears in your menu bar
 automatically. Files placed by the macOS installer carry no quarantine
 flag, so the app itself launches cleanly from then on.
 
-### Option C — the zip
+### Option D — the zip
 
 Grab `NightOwl-<version>.zip` from the same Releases page. Unzip, drag
 `NightOwl.app` to `/Applications`, then **right-click → Open** the first
@@ -195,6 +209,23 @@ the one daemon Smart Auto installs (and removes when you leave that mode).
 `disablesleep` persists across reboots; whatever mode you pick stays picked.
 
 ## FAQ
+
+**How do I keep my MacBook awake with the lid closed, without an external
+display?**
+That's exactly what NightOwl is for. macOS only allows closed-lid
+("clamshell") operation when the Mac is connected to AC power *and* an
+external display; NightOwl uses `pmset disablesleep` to keep the machine
+running with the lid shut and nothing plugged in at all. Pick 🦉 Always
+Awake (or 🔌 Smart Auto if it should still sleep on battery) and close the
+lid.
+
+**Is there a free alternative to Amphetamine or caffeinate that survives a
+closed lid?**
+NightOwl is free and MIT-licensed — and closed-lid operation is precisely
+the case Amphetamine and `caffeinate` can't handle. Their power assertions
+only prevent *idle* sleep; the forced clamshell sleep ignores assertions
+entirely. Only `pmset disablesleep`, which NightOwl manages, survives a
+lid close.
 
 **My screen still turns off and locks when I close the lid — is it even
 working?**

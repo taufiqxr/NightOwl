@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NightOwl — Keep your MacBook awake with the lid closed (no external display)</title>
+<meta name="description" content="NightOwl is a free, open-source macOS menu bar app that keeps your Mac awake even with the lid closed — no external display needed, the thing caffeinate and Amphetamine can't do. Low-battery guard, live server monitoring, Claude Code session switcher.">
+<link rel="canonical" href="https://taufiqxr.github.io/NightOwl/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="NightOwl — keep your MacBook awake with the lid closed">
+<meta property="og:description" content="Free, open-source menu bar app. Closed lid, no external display, servers still running — the thing caffeinate and Amphetamine can't do.">
+<meta property="og:url" content="https://taufiqxr.github.io/NightOwl/">
+<meta property="og:image" content="https://taufiqxr.github.io/NightOwl/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://taufiqxr.github.io/NightOwl/social-preview.png">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦉</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Spline+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "NightOwl",
+  "operatingSystem": "macOS 13+",
+  "applicationCategory": "UtilitiesApplication",
+  "description": "Menu bar app that keeps a Mac awake even with the lid closed and no external display, via pmset disablesleep — with a low-battery guard, live local-server monitoring, and a Claude Code session switcher.",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "license": "https://opensource.org/licenses/MIT",
+  "url": "https://taufiqxr.github.io/NightOwl/",
+  "downloadUrl": "https://github.com/taufiqxr/NightOwl/releases",
+  "author": { "@type": "Person", "name": "Taufiq Rahman", "url": "https://github.com/taufiqxr" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I keep my MacBook awake with the lid closed, without an external display?",
+      "acceptedAnswer": { "@type": "Answer", "text": "macOS only allows closed-lid (clamshell) operation when the Mac is on AC power and connected to an external display. NightOwl uses macOS's own pmset disablesleep switch to keep the machine running with the lid shut and nothing plugged in at all." }
+    },
+    {
+      "@type": "Question",
+      "name": "Why can't caffeinate or Amphetamine keep a MacBook awake with the lid closed?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Their power assertions only prevent idle sleep. The forced clamshell sleep that macOS triggers on lid close ignores assertions entirely — only pmset disablesleep, which NightOwl manages, survives a lid close." }
+    },
+    {
+      "@type": "Question",
+      "name": "Will keeping my Mac always awake drain the battery?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Unplugged, the Mac stays fully on — but NightOwl's low-battery guard restores normal sleep below 15% battery and re-arms at 18% or on the charger, so a forgotten Mac can't run itself flat. Smart Auto mode sleeps normally on battery altogether." }
+    },
+    {
+      "@type": "Question",
+      "name": "My screen still turns off and locks when I close the lid — is NightOwl working?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes, that's the design: the display sleeps and locks, the machine keeps running. Verify with pmset -g | grep SleepDisabled — 1 means every server, download, and script is still going with the lid shut." }
+    }
+  ]
+}
+</script>
+<style>
+:root{
+  --night:#0b1122;
+  --panel:#111a31;
+  --panel-edge:#1e2a4a;
+  --ink:#e9ecf5;
+  --dim:#98a2bb;
+  --amber:#f2b64c;
+  --amber-soft:#f2b64c26;
+  --awake:#82d996;
+  --asleep:#7c89a6;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --body:"Spline Sans",-apple-system,system-ui,sans-serif;
+  --display:"Fraunces",Georgia,serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--night);
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:17px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--amber);text-decoration:none}
+a:hover,a:focus-visible{text-decoration:underline;text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--amber);outline-offset:3px;border-radius:2px}
+.wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+
+/* header */
+header{padding:26px 0}
+header .wrap{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+.wordmark{font-family:var(--display);font-weight:600;font-size:22px;color:var(--ink)}
+.wordmark .owl{margin-right:8px}
+nav{display:flex;gap:22px;font-size:15px}
+nav a{color:var(--dim)}
+nav a:hover{color:var(--amber)}
+
+/* hero */
+.hero{padding:60px 0 30px}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:56px;align-items:center}
+.hero-grid>*,.aware-grid>*{min-width:0}
+.eyebrow{
+  font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--amber);margin-bottom:22px;display:flex;align-items:center;gap:10px;
+}
+.eyebrow::before{content:"";width:26px;height:1px;background:var(--amber);display:inline-block}
+h1{
+  font-family:var(--display);font-weight:500;
+  font-size:clamp(40px,5.4vw,62px);line-height:1.06;letter-spacing:-.01em;
+  margin-bottom:22px;
+}
+h1 em{font-style:italic;color:var(--amber)}
+.hero p.lede{font-size:19px;color:var(--dim);max-width:32em;margin-bottom:30px}
+.hero p.lede strong{color:var(--ink);font-weight:500}
+
+.install{
+  display:flex;align-items:stretch;gap:0;max-width:560px;
+  background:var(--panel);border:1px solid var(--panel-edge);border-radius:10px;
+  font-family:var(--mono);font-size:14.5px;overflow:hidden;
+}
+.install code{flex:1;padding:14px 18px;white-space:nowrap;overflow-x:auto;color:var(--ink)}
+.install code .p{color:var(--asleep)}
+.install button{
+  font-family:var(--body);font-weight:600;font-size:14px;border:none;cursor:pointer;
+  background:var(--amber);color:#241a05;padding:0 20px;flex-shrink:0;
+}
+.install button:hover{background:#ffc966}
+.alt-install{margin-top:14px;font-size:14.5px;color:var(--dim)}
+
+/* the log — signature element */
+.log{
+  background:#0d1426;border:1px solid var(--panel-edge);border-radius:12px;
+  font-family:var(--mono);font-size:13px;line-height:1.9;
+  padding:18px 20px 20px;position:relative;
+  box-shadow:0 30px 80px -30px rgba(0,0,0,.8);
+}
+.log-title{
+  display:flex;align-items:center;gap:8px;color:var(--asleep);font-size:12px;
+  border-bottom:1px solid var(--panel-edge);padding-bottom:12px;margin-bottom:12px;
+}
+.log-title .dots{display:flex;gap:6px}
+.log-title .dots i{width:10px;height:10px;border-radius:50%;background:var(--panel-edge);display:block}
+.log ol{list-style:none}
+.log li{white-space:nowrap;overflow:hidden;color:var(--dim);opacity:0;animation:reveal .01s linear forwards}
+.log li .t{color:var(--asleep)}
+.log li .ok{color:var(--awake)}
+.log li .warn{color:var(--amber)}
+.log li:nth-child(1){animation-delay:.2s}
+.log li:nth-child(2){animation-delay:.9s}
+.log li:nth-child(3){animation-delay:1.6s}
+.log li:nth-child(4){animation-delay:2.5s}
+.log li:nth-child(5){animation-delay:3.4s}
+.log li:nth-child(6){animation-delay:4.3s}
+.log li:nth-child(7){animation-delay:5.2s}
+.log li:nth-child(8){animation-delay:6s}
+.log .cursor::after{content:"▋";color:var(--awake);animation:blink 1.1s steps(1) infinite}
+@keyframes reveal{to{opacity:1}}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  .log li{animation:none;opacity:1}
+  .log .cursor::after{animation:none}
+  html{scroll-behavior:auto}
+}
+.log-caption{font-size:13px;color:var(--asleep);margin-top:12px;font-family:var(--body)}
+
+/* sections */
+section{padding:64px 0}
+.kicker{
+  font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--amber);margin-bottom:14px;
+}
+h2{
+  font-family:var(--display);font-weight:500;font-size:clamp(28px,3.4vw,38px);
+  line-height:1.15;letter-spacing:-.01em;margin-bottom:18px;max-width:22em;
+}
+section>.wrap>p{color:var(--dim);max-width:44em}
+section>.wrap>p strong{color:var(--ink);font-weight:500}
+
+/* why: the causal chain */
+.chain{margin-top:36px;border-top:1px solid var(--panel-edge)}
+.chain-row{
+  display:grid;grid-template-columns:220px 1fr;gap:24px;
+  padding:24px 0;border-bottom:1px solid var(--panel-edge);
+}
+.chain-row dt{font-weight:600;color:var(--ink);font-size:16.5px}
+.chain-row dt .m{display:block;font-family:var(--mono);font-weight:400;font-size:12.5px;color:var(--asleep);margin-top:4px}
+.chain-row dd{color:var(--dim);font-size:16px;max-width:40em}
+.chain-row dd code,section p code,li code{
+  font-family:var(--mono);font-size:.86em;background:var(--panel);
+  border:1px solid var(--panel-edge);border-radius:5px;padding:2px 6px;color:var(--ink);
+}
+
+/* modes */
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:36px}
+.mode{
+  background:var(--panel);border:1px solid var(--panel-edge);border-radius:12px;
+  padding:24px 22px;
+}
+.mode .icon{font-size:26px;display:block;margin-bottom:12px}
+.mode h3{font-size:17px;font-weight:600;margin-bottom:8px}
+.mode p{font-size:15px;color:var(--dim)}
+.mode .guard{
+  margin-top:14px;padding-top:12px;border-top:1px dashed var(--panel-edge);
+  font-size:13.5px;color:var(--amber);
+}
+
+/* servers / screenshot */
+.aware-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:56px;align-items:center;margin-top:12px}
+.aware-grid img{
+  width:100%;height:auto;border-radius:12px;border:1px solid var(--panel-edge);
+  box-shadow:0 30px 80px -30px rgba(0,0,0,.8);
+}
+.aware-list{list-style:none;margin-top:26px;display:grid;gap:18px}
+.aware-list li{color:var(--dim);font-size:16px;padding-left:26px;position:relative}
+.aware-list li::before{content:"";position:absolute;left:0;top:9px;width:8px;height:8px;border-radius:50%;background:var(--awake)}
+.aware-list li strong{color:var(--ink);font-weight:500}
+
+/* transparency */
+.root-panel{
+  background:var(--panel);border:1px solid var(--panel-edge);border-radius:12px;
+  padding:30px 32px;margin-top:32px;max-width:760px;
+}
+.root-panel ul{list-style:none;display:grid;gap:12px}
+.root-panel li{color:var(--dim);font-size:15.5px;padding-left:24px;position:relative}
+.root-panel li::before{content:"—";position:absolute;left:0;color:var(--amber)}
+.root-panel .nothing{margin-top:18px;padding-top:16px;border-top:1px solid var(--panel-edge);color:var(--ink);font-size:15.5px}
+
+/* faq */
+.faq{max-width:760px}
+.faq details{border-bottom:1px solid var(--panel-edge);padding:6px 0}
+.faq summary{
+  cursor:pointer;font-weight:500;font-size:17px;padding:16px 0;list-style:none;
+  display:flex;justify-content:space-between;align-items:center;gap:16px;
+}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";font-family:var(--mono);color:var(--amber);font-size:20px;flex-shrink:0}
+.faq details[open] summary::after{content:"–"}
+.faq details p{color:var(--dim);padding-bottom:20px;max-width:42em}
+
+/* footer */
+footer{padding:56px 0 64px;border-top:1px solid var(--panel-edge);margin-top:40px}
+footer .wrap{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;align-items:baseline}
+footer p{color:var(--asleep);font-size:14.5px}
+footer nav{gap:26px}
+
+@media (max-width:880px){
+  .hero-grid,.aware-grid{grid-template-columns:1fr;gap:40px}
+  .modes{grid-template-columns:1fr}
+  .chain-row{grid-template-columns:1fr;gap:6px}
+  .aware-grid .aware-copy{order:-1}
+  header nav{display:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <span class="wordmark"><span class="owl">🦉</span>NightOwl</span>
+    <nav aria-label="Site">
+      <a href="#why">Why</a>
+      <a href="#modes">Modes</a>
+      <a href="#aware">Servers</a>
+      <a href="#root">What runs as root</a>
+      <a href="https://github.com/taufiqxr/NightOwl">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<section class="hero" aria-label="Introduction">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">Free · open source · macOS 13+</p>
+      <h1>Close the lid.<br><em>Nothing dies.</em></h1>
+      <p class="lede">
+        NightOwl keeps your MacBook awake <strong>with the lid closed — no
+        external display, no dock</strong> — the thing <code>caffeinate</code>
+        and Amphetamine can't do. Turn the MacBook you already own into an
+        always-on machine for bots, agents, and home servers.
+      </p>
+      <div class="install">
+        <code><span class="p">$</span> brew install --cask taufiqxr/tap/nightowl</code>
+        <button type="button" data-copy="brew install --cask taufiqxr/tap/nightowl">Copy</button>
+      </div>
+      <p class="alt-install">
+        No Homebrew? Grab the <a href="https://github.com/taufiqxr/NightOwl/releases">.pkg installer</a>
+        — or <a href="https://github.com/taufiqxr/NightOwl#install">build from source</a>.
+      </p>
+    </div>
+    <figure class="log" aria-label="A night in NightOwl's log">
+      <div class="log-title">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span>tail -f /var/log/nightowl.log</span>
+      </div>
+      <ol>
+        <li><span class="t">23:41:07</span> mode=always <span class="ok">disablesleep 1</span></li>
+        <li><span class="t">23:41:52</span> lid closed — machine still awake</li>
+        <li><span class="t">00:13:20</span> watch: port 3000 <span class="ok">up</span> (node)</li>
+        <li><span class="t">01:47:33</span> watch: cloudflared <span class="ok">up</span></li>
+        <li><span class="t">03:22:10</span> on battery 34% — guard armed</li>
+        <li><span class="t">05:58:41</span> back on AC — <span class="ok">disablesleep 1</span></li>
+        <li><span class="t">07:30:02</span> uptime intact. servers never blinked</li>
+        <li class="cursor"><span class="t">07:30:02</span> </li>
+      </ol>
+      <figcaption class="log-caption">A MacBook, shut at 23:41, still serving at breakfast.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="why">
+  <div class="wrap">
+    <p class="kicker">The clamshell problem</p>
+    <h2>Keep a MacBook awake with the lid closed — the part other tools can't do</h2>
+    <p>
+      If you run anything on a MacBook that needs to stay alive — a home
+      server, a bot, a long download, a build — closing the lid kills it.
+      Here's the chain, and where every other tool breaks:
+    </p>
+    <dl class="chain">
+      <div class="chain-row">
+        <dt>macOS force-sleeps on lid close<span class="m">clamshell sleep</span></dt>
+        <dd>Unless the Mac is docked to both AC power <em>and</em> an external
+        display, shutting the lid always sleeps the machine. That's built into
+        macOS, not a setting.</dd>
+      </div>
+      <div class="chain-row">
+        <dt>Keep-awake apps can't stop it<span class="m">caffeinate · Amphetamine</span></dt>
+        <dd>Their power assertions only prevent <em>idle</em> sleep. Forced
+        clamshell sleep ignores assertions entirely — the popular tools are
+        simply not in this fight.</dd>
+      </div>
+      <div class="chain-row">
+        <dt>One switch survives the lid<span class="m">pmset disablesleep</span></dt>
+        <dd>macOS's own root-level power switch — powerful, and easy to misuse
+        (a Mac that <em>never</em> sleeps will happily cook in a backpack).
+        NightOwl wraps it in three explicit modes, an always-visible status
+        icon, and a low-battery guard.</dd>
+      </div>
+    </dl>
+  </div>
+</section>
+
+<section id="modes">
+  <div class="wrap">
+    <p class="kicker">Three modes, one honest icon</p>
+    <h2>Set it by intent, not by incantation</h2>
+    <p>
+      The menu bar icon reflects the <strong>actual</strong> system state,
+      checked every 10 seconds — not just what NightOwl last did. If anything
+      else touches the sleep setting, you'll see it.
+    </p>
+    <div class="modes">
+      <div class="mode">
+        <span class="icon" aria-hidden="true">🦉</span>
+        <h3>Always Awake</h3>
+        <p>Never sleeps — plugged in or on battery. For the Mac that's become
+        a stationary appliance.</p>
+        <p class="guard">Low-battery guard: below 15% on battery, normal sleep
+        is restored so a forgotten Mac can't run itself flat. Re-arms at 18%
+        or on the charger.</p>
+      </div>
+      <div class="mode">
+        <span class="icon" aria-hidden="true">🔌</span>
+        <h3>Smart Auto</h3>
+        <p>Awake whenever plugged in, normal sleep on battery. Set-and-forget,
+        and bag-safe by construction: unplugged means it sleeps.</p>
+      </div>
+      <div class="mode">
+        <span class="icon" aria-hidden="true">💤</span>
+        <h3>Normal Sleep</h3>
+        <p>The macOS default, one click away. NightOwl never makes stock
+        behavior hard to get back.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="aware">
+  <div class="wrap">
+    <p class="kicker">Not just awake — aware</p>
+    <h2>It knows what it's staying awake <em>for</em></h2>
+    <div class="aware-grid">
+      <img src="menu.png" width="680" height="820"
+        alt="NightOwl menu showing sleep status, three modes, a live Servers list with ports, and the Claude Code session switcher expanded">
+      <div class="aware-copy">
+        <ul class="aware-list">
+          <li><strong>Live server list.</strong> Every local service with an
+          open port, grouped by process — open <code>localhost:PORT</code> or
+          copy the URL from the menu. Tunnels (<code>cloudflared</code>,
+          <code>ngrok</code>) detected too.</li>
+          <li><strong>Watch anything.</strong> A watched service that goes
+          down triggers a macOS notification — and another when it's back. An
+          always-awake Mac can't silently become a uselessly awake Mac.</li>
+          <li><strong>Claude Code session switcher.</strong> Every open
+          session listed by name, busy sessions marked ⚡, one click to jump
+          to that terminal.</li>
+          <li><strong>Nothing leaves the machine.</strong> Detection is one
+          <code>lsof</code> call when you open the menu. No network access, no
+          analytics.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="root">
+  <div class="wrap">
+    <p class="kicker">Transparency</p>
+    <h2>What runs as root — the complete list</h2>
+    <p>
+      A tool that asks for your admin password owes you the full story.
+      NightOwl's is short:
+    </p>
+    <div class="root-panel">
+      <ul>
+        <li>Always Awake and Smart Auto install one root LaunchDaemon — about
+        40 lines of shell <a href="https://github.com/taufiqxr/NightOwl/blob/main/Resources/nightowl-auto.sh">you
+        can read</a> — that checks power state every 20 seconds and flips
+        <code>pmset disablesleep</code> accordingly.</li>
+        <li>The low-battery guard runs as root precisely so it works
+        unattended — no password prompt when the Mac is forgotten in a bag.</li>
+        <li>Normal Sleep removes the daemon and restores
+        <code>disablesleep 0</code>. Every state change is one line in
+        <code>/var/log/nightowl.log</code>.</li>
+      </ul>
+      <p class="nothing">Nothing else. No network access, no analytics, no
+      background helpers beyond that one daemon — and the daemon's logic is
+      covered by mock-based tests run in CI on every push.
+      <a href="https://github.com/taufiqxr/NightOwl#how-it-works-and-what-runs-as-root">Full
+      write-up →</a></p>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <p class="kicker">FAQ</p>
+    <h2>Fair questions</h2>
+    <div class="faq">
+      <details>
+        <summary>My screen still turns off and locks when I close the lid — is it even working?</summary>
+        <p>Yes — that's the design. The <em>display</em> sleeps and locks; the
+        <em>machine</em> keeps running. Check the menu bar icon (🦉 = awake)
+        or run <code>pmset -g | grep SleepDisabled</code> — <code>1</code>
+        means every server, download, and script is still going with the lid
+        shut.</p>
+      </details>
+      <details>
+        <summary>Will Always Awake drain my battery?</summary>
+        <p>It will use it — unplugged, the Mac stays fully on. But it won't
+        run itself flat: the guard restores normal sleep below 15% battery and
+        re-arms once you're charging or above 18%. If your Mac travels a lot,
+        Smart Auto is the better fit: normal sleep the moment you unplug.</p>
+      </details>
+      <details>
+        <summary>Why does it need my admin password?</summary>
+        <p><code>pmset disablesleep</code> is a root-level power switch —
+        macOS itself requires admin rights for it. NightOwl asks through the
+        standard macOS dialog, and the section above lists every command it
+        runs with those rights.</p>
+      </details>
+      <details>
+        <summary>Why the Gatekeeper warning on first launch?</summary>
+        <p>NightOwl is ad-hoc signed, not notarized — notarization requires a
+        paid Apple developer account, and this is a free MIT project.
+        Right-click → Open once, or <code>brew install --cask
+        --no-quarantine taufiqxr/tap/nightowl</code>. The full source is on
+        GitHub if you'd rather build it yourself.</p>
+      </details>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>🦉 NightOwl — MIT licensed. Built because a MacBook running always-on services kept dying on lid close.</p>
+    <nav aria-label="Footer">
+      <a href="https://github.com/taufiqxr/NightOwl">GitHub</a>
+      <a href="https://github.com/taufiqxr/NightOwl/releases">Releases</a>
+      <a href="https://github.com/taufiqxr/NightOwl/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="https://github.com/taufiqxr/NightOwl#uninstall">Uninstall</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll("[data-copy]").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    navigator.clipboard.writeText(btn.dataset.copy).then(function(){
+      var old=btn.textContent;btn.textContent="Copied";
+      setTimeout(function(){btn.textContent=old},1600);
+    });
+  });
+});
+</script>
+</body>
+</html>
